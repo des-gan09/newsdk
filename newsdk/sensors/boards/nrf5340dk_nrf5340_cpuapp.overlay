@@ -1,0 +1,7 @@
+&spi2 {
+	compatible = "nordic,nrf-spim";
+	status = "okay";
+	sck-pin = <8>;
+	miso-pin = <9>;
+	mosi-pin = <10>;
+};
