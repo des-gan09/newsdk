@@ -421,22 +421,56 @@ void main(void)
 	cons=device_get_binding(CONSOLE_LABEL);
 
 	hal_spi_init();
-	lis3mdl_init(spi_ctg1);
+	// lis3mdl_init(spi_ctg1);
+	sensor_mode(1);
 	struct sensor_data_t *magnet;
 	while(1) {
 		// uint8_t count = 0;
 		// uint32_t start_time = k_uptime_get_32(); 
 		magnet = k_malloc(sizeof(*magnet) * NUM_SAMPLE);
-		
+		uint8_t count = 0;
+		struct spi_config spi_ctg;
 		// magnet[0].x_value = 0;
 		for (int i = 0; i < NUM_SAMPLE; i++) {
-			magnet[i].sensor_id = 0;
-			lis3mdl_get_xyz(spi_ctg1, &magnet[i]);
+			if (count == 7) {
+				count = 0;
+			}
+			switch (count)
+			{
+			case 0:
+				spi_ctg = spi_ctg1;
+				break;
+			case 1:
+				spi_ctg = spi_ctg2;
+				break;
+			case 2:
+				spi_ctg = spi_ctg3;
+				break;
+			case 3:
+				spi_ctg = spi_ctg4;
+				break;
+			case 4:
+				spi_ctg = spi_ctg5;
+				break;
+			case 5:
+				spi_ctg = spi_ctg6;
+				break;
+			case 6:
+				spi_ctg = spi_ctg7;
+				break;
+			default:
+				break;
+
+			}
+
+			magnet[i].sensor_id = count;
+			lis3mdl_get_xyz(spi_ctg, &magnet[i]);
 			magnet[i].timestamp = k_uptime_get_32();
 			
 			printk("%d %f %f %f %d\n",magnet[i].sensor_id, convert(magnet[i].x_value), convert(magnet[i].y_value), convert(magnet[i].z_value),  magnet[i].timestamp);
-			printk("terst\n");
-			k_msleep(10);		
+			// printk("terst\n");
+			count++;
+			k_msleep(100);		
 		}
 		
 		// uint32_t end_time = k_uptime_get_32();
