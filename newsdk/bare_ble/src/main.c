@@ -23,6 +23,11 @@
 #include <bluetooth/services/nus.h>
 #include <string.h>
 #include <logging/log.h>
+
+#include <mgmt/mcumgr/smp_bt.h>
+#include "os_mgmt/os_mgmt.h"
+#include "img_mgmt/img_mgmt.h"
+
 #define LOG_MODULE_NAME fittag
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
@@ -73,7 +78,9 @@ static const struct bt_data ad[] = {
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL,
+		      0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86,
+		      0xd3, 0x4c, 0xb7, 0x1d, 0x1d, 0xdc, 0x53, 0x8d),
 };
 
 #define LIS3MDL_I2C_ADDR 0x1EU
@@ -464,12 +471,8 @@ static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 	printk("Received data \n");
 	memcpy(buff->data,data,len);
 	buff->len=len;
-	// if (bt_nus_send(NULL, buffer, buff_len)) {
-	// 		printk("Failed to send data over BLE connection\n");
-	// }
+
 	k_fifo_put(&fifo_transfer, buff);
-	// printk("%s\n", buff->data);
-	// k_free(buff);
 }
 
 static struct bt_nus_cb nus_cb = {
@@ -617,7 +620,8 @@ void main(void)
 
 	/* Prevent deep sleep (system off) from being entered */
 	pm_constraint_set(PM_STATE_SOFT_OFF);
-		
+	
+
 	bt_conn_cb_register(&conn_callbacks);
 
 	err = bt_enable(NULL);
@@ -680,11 +684,6 @@ void ble_write_thread(void)
 			}
 		}
 
-		if (strcmp("flash", command[0]) == 0) {
-			// enable dfu buttonless
-
-		}
-
 		if (strcmp(NULL, command[1]) == 0) {
 			if (strcmp("sample", command[0]) == 0) {
 				memset(buf, 0, sizeof(buf));
@@ -696,6 +695,7 @@ void ble_write_thread(void)
 			}
 		}
 
+		// This part is shitty...
 		else if (strcmp("sample", command[0]) == 0) {
 			if (strcmp(NULL, command[1])!=0) {
 				count = atoi(command[1]);
