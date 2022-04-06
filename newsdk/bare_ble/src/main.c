@@ -24,14 +24,41 @@
 #include <string.h>
 #include <logging/log.h>
 
-#include <mgmt/mcumgr/smp_bt.h>
-#include "os_mgmt/os_mgmt.h"
-#include "img_mgmt/img_mgmt.h"
+// #include <mgmt/mcumgr/smp_bt.h>
+// #include "os_mgmt/os_mgmt.h"
+// #include "img_mgmt/img_mgmt.h"
 
 #define LOG_MODULE_NAME fittag
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define CONSOLE_LABEL DT_LABEL(DT_CHOSEN(zephyr_console))
+#define SLEEP_TIME_MS   1000
+#define LED0_NODE DT_ALIAS(led0)
+
+#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
+#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
+#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
+#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
+#else
+/* A build error here means your board isn't set up to blink an LED. */
+#error "Unsupported board: led0 devicetree alias is not defined"
+#define LED0	""
+#define PIN	0
+#define FLAGS	0
+#endif
+
+#define LED1_NODE DT_ALIAS(led1)
+#if DT_NODE_HAS_STATUS(LED1_NODE, okay)
+#define LED1	DT_GPIO_LABEL(LED1_NODE, gpios)
+#define PIN1	DT_GPIO_PIN(LED1_NODE, gpios)
+#define FLAGS1	DT_GPIO_FLAGS(LED1_NODE, gpios)
+#else
+/* A build error here means your board isn't set up to blink an LED. */
+#error "Unsupported board: led1 devicetree alias is not defined"
+#define LED1	""
+#define PIN1	0
+#define FLAGS1	0
+#endif
 
 #define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
 #define PRIORITY 7
@@ -62,6 +89,8 @@ static K_SEM_DEFINE(ble_init_ok, 0, 1);
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;
 
+const struct device *led2;
+
 struct uart_data_t {
 	void *fifo_reserved;
 	uint8_t data[UART_BUF_SIZE];
@@ -78,10 +107,14 @@ static const struct bt_data ad[] = {
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL,
-		      0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86,
-		      0xd3, 0x4c, 0xb7, 0x1d, 0x1d, 0xdc, 0x53, 0x8d),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
+
+// static const struct bt_data sd[] = {
+// 	BT_DATA_BYTES(BT_DATA_UUID128_ALL,
+// 		      0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86,
+// 		      0xd3, 0x4c, 0xb7, 0x1d, 0x1d, 0xdc, 0x53, 0x8d),
+// };
 
 #define LIS3MDL_I2C_ADDR 0x1EU
 #define LIS3MDL_SPI_READ		(1 << 7)
@@ -418,7 +451,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	printk("Connected\n");
 
 	current_conn = bt_conn_ref(conn);
-
+	gpio_pin_set(led2, PIN1, 0);
 	
 }
 
@@ -440,6 +473,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		current_conn = NULL;
 	
 	}
+	gpio_pin_set(led2, PIN1, 1);
 }
 
 
@@ -613,10 +647,29 @@ void main(void)
 	const struct device *cons;
 	cons=device_get_binding(CONSOLE_LABEL);
 	printk("CONS=%d\n",cons);
+	const struct device *led1;
+	
+	bool led_is_on = true;
+	int ret, ret2;
+	led1 = device_get_binding(LED0);
+	if (led1 == NULL) {
+		return;
+	}
+
+	led2 = device_get_binding(LED1);
+	if (led2 == NULL) {
+		return;
+	}
+
+	ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
+	ret = gpio_pin_configure(led2, PIN1, GPIO_OUTPUT_ACTIVE | FLAGS1);
+	if (ret < 0 || ret2 < 0) {
+		return;
+	}
 
 	hal_spi_init();
 	// lis3mdl_init(spi_ctg1);
-	sensor_mode(1);
+	// sensor_mode(1);
 
 	/* Prevent deep sleep (system off) from being entered */
 	pm_constraint_set(PM_STATE_SOFT_OFF);
@@ -658,7 +711,11 @@ void main(void)
 	* that, then force a sleep so that the deep sleep takes effect.
 	*/
 	// pm_power_state_force((struct pm_state_info){PM_STATE_SOFT_OFF, 0, 0});
-	// for(;;){}
+	while (1) {
+		gpio_pin_set(led1, PIN, (int)led_is_on);
+		led_is_on = !led_is_on;
+		k_msleep(SLEEP_TIME_MS);
+	}
 }
 
 void ble_write_thread(void)
