@@ -3,6 +3,7 @@
 #include <zephyr.h>
 #include <drivers/spi.h>
 #include <sys/time_units.h>
+#include <hal/nrf_gpio.h>
 
 #include <device.h>
 #include <soc.h>
@@ -17,19 +18,19 @@
 // LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 /* The devicetree node identifier for the "led0" alias. */
-// #define LED0_NODE DT_ALIAS(led0)
+#define LED0_NODE DT_ALIAS(led0)
 
-// #if DT_NODE_HAS_STATUS(LED0_NODE, okay)
-// #define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
-// #define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
-// #define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
-// #else
-// /* A build error here means your board isn't set up to blink an LED. */
-// #error "Unsupported board: led0 devicetree alias is not defined"
-// #define LED0	""
-// #define PIN	0
-// #define FLAGS	0
-// #endif
+#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
+#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
+#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
+#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
+#else
+/* A build error here means your board isn't set up to blink an LED. */
+#error "Unsupported board: led0 devicetree alias is not defined"
+#define LED0	""
+#define PIN	0
+#define FLAGS	0
+#endif
 
 #define NUM_SAMPLE 10
 #define CONSOLE_LABEL DT_LABEL(DT_CHOSEN(zephyr_console))
@@ -142,7 +143,7 @@ struct sensor_data_t {
 };
 
 void hal_spi_init(void) {
-	spi = device_get_binding("SPI_2");
+	spi = device_get_binding("SPI_1");
 
 	if (spi == NULL) {
 		return;
@@ -419,18 +420,27 @@ void main(void)
 {
 	const struct device *cons;
 	cons=device_get_binding(CONSOLE_LABEL);
+	const struct device *led1;
+	
+	bool led_is_on = true;
+	int ret;
+	led1 = device_get_binding(LED0);
+	if (led1 == NULL) {
+		return;
+	}
+
+	ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
 
 	hal_spi_init();
-	// lis3mdl_init(spi_ctg1);
+	// // lis3mdl_init(spi_ctg1);
 	sensor_mode(1);
 	struct sensor_data_t *magnet;
 	while(1) {
-		// uint8_t count = 0;
+		uint8_t count = 0;
 		// uint32_t start_time = k_uptime_get_32(); 
 		magnet = k_malloc(sizeof(*magnet) * NUM_SAMPLE);
-		uint8_t count = 0;
 		struct spi_config spi_ctg;
-		// magnet[0].x_value = 0;
+		magnet[0].x_value = 0;
 		for (int i = 0; i < NUM_SAMPLE; i++) {
 			if (count == 7) {
 				count = 0;
@@ -463,8 +473,8 @@ void main(void)
 
 			}
 
-			magnet[i].sensor_id = count;
-			lis3mdl_get_xyz(spi_ctg, &magnet[i]);
+			magnet[i].sensor_id = 0;
+			lis3mdl_get_xyz(spi_ctg1, &magnet[i]);
 			magnet[i].timestamp = k_uptime_get_32();
 			
 			printk("%d %f %f %f %d\n",magnet[i].sensor_id, convert(magnet[i].x_value), convert(magnet[i].y_value), convert(magnet[i].z_value),  magnet[i].timestamp);
@@ -472,9 +482,12 @@ void main(void)
 			count++;
 			k_msleep(100);		
 		}
-		
+		printk("test\n");
+		gpio_pin_set(led1, PIN, (int)led_is_on);
+		led_is_on = !led_is_on;
+		k_msleep(1000);
 		// uint32_t end_time = k_uptime_get_32();
-		k_free(magnet);
-		k_msleep(100);
+		// k_free(magnet);
+		// k_msleep(100);
 	}
 }

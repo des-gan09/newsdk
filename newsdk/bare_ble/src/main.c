@@ -451,7 +451,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	printk("Connected\n");
 
 	current_conn = bt_conn_ref(conn);
-	gpio_pin_set(led2, PIN1, 0);
+	gpio_pin_set(led2, PIN1, 1);
 	
 }
 
@@ -473,7 +473,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		current_conn = NULL;
 	
 	}
-	gpio_pin_set(led2, PIN1, 1);
+	gpio_pin_set(led2, PIN1, 0);
 }
 
 
@@ -700,7 +700,7 @@ void main(void)
 		printk("Advertising failed to start (err %d)\n", err);
 	}
 
-	printk("Starting Nordic UART service example\n");
+	// printk("Starting Nordic UART service example\n");
 	// printk("Bluetooth initialized\n");
 	// printk("TURNING OFF CONSOLE\n");
 	// rc=pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL); 
