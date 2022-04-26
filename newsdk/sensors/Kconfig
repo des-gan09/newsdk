@@ -33,10 +33,4 @@ config BT_NUS_UART_RX_WAIT_TIME
 	help
 	  Wait for RX complete event time in milliseconds
 
-# config WATCHDOG_ACTIVE
-# 	bool "Enable watchdog"
-# 	default n
-# 	help
-# 	  Enable watchdog for BLE hangup
-
 endmenu

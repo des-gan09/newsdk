@@ -615,7 +615,7 @@ void send_data(uint16_t count) {
 				break;
 			}
 
-			if (temp_time - magnet[i-6].timestamp > 900) {
+			if (temp_time - magnet[i-6].timestamp > 1000) {
 				lis3mdl_get_xyz(spi_ctg, &(magnet[i]));
 				magnet[i].timestamp = temp_time; // get timestamp in microseconds 
 				break;
