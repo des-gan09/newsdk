@@ -19,10 +19,13 @@
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
 #include <bluetooth/hci.h>
+#include <sys/byteorder.h>
 
 #include <bluetooth/services/nus.h>
 #include <string.h>
 #include <logging/log.h>
+
+#include <bluetooth/hci_vs.h>
 
 #include <mgmt/mcumgr/smp_bt.h>
 #include "os_mgmt/os_mgmt.h"
@@ -33,34 +36,32 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define CONSOLE_LABEL DT_LABEL(DT_CHOSEN(zephyr_console))
 #define SLEEP_TIME_MS   1000
+#define LED0_NODE DT_ALIAS(led0)
 
+#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
+#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
+#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
+#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
+#else
+/* A build error here means your board isn't set up to blink an LED. */
+#error "Unsupported board: led0 devicetree alias is not defined"
+#define LED0	""
+#define PIN	0
+#define FLAGS	0
+#endif
 
-// #define LED0_NODE DT_ALIAS(led0)
-
-// #if DT_NODE_HAS_STATUS(LED0_NODE, okay)
-// #define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
-// #define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
-// #define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
-// #else
-// /* A build error here means your board isn't set up to blink an LED. */
-// #error "Unsupported board: led0 devicetree alias is not defined"
-// #define LED0	""
-// #define PIN	0
-// #define FLAGS	0
-// #endif
-
-// #define LED1_NODE DT_ALIAS(led1)
-// #if DT_NODE_HAS_STATUS(LED1_NODE, okay)
-// #define LED1	DT_GPIO_LABEL(LED1_NODE, gpios)
-// #define PIN1	DT_GPIO_PIN(LED1_NODE, gpios)
-// #define FLAGS1	DT_GPIO_FLAGS(LED1_NODE, gpios)
-// #else
-// /* A build error here means your board isn't set up to blink an LED. */
-// #error "Unsupported board: led1 devicetree alias is not defined"
-// #define LED1	""
-// #define PIN1	0
-// #define FLAGS1	0
-// #endif
+#define LED1_NODE DT_ALIAS(led1)
+#if DT_NODE_HAS_STATUS(LED1_NODE, okay)
+#define LED1	DT_GPIO_LABEL(LED1_NODE, gpios)
+#define PIN1	DT_GPIO_PIN(LED1_NODE, gpios)
+#define FLAGS1	DT_GPIO_FLAGS(LED1_NODE, gpios)
+#else
+/* A build error here means your board isn't set up to blink an LED. */
+#error "Unsupported board: led1 devicetree alias is not defined"
+#define LED1	""
+#define PIN1	0
+#define FLAGS1	0
+#endif
 
 #define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
 #define PRIORITY 7
@@ -89,8 +90,8 @@ static K_SEM_DEFINE(ble_init_ok, 0, 1);
 // 									0X0C80, \
 // 									0X0F00, NULL)  //2s
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-									BT_GAP_ADV_FAST_INT_MIN_2, \
-									BT_GAP_ADV_FAST_INT_MAX_2, NULL)  //1s
+									BT_GAP_ADV_SLOW_INT_MIN, \
+									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
 
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;
@@ -122,6 +123,9 @@ static const struct bt_data sd[] = {
 		      0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86,
 		      0xd3, 0x4c, 0xb7, 0x1d, 0x1d, 0xdc, 0x53, 0x8d),
 };
+
+
+
 
 #define LIS3MDL_I2C_ADDR 0x1EU
 #define LIS3MDL_SPI_READ		(1 << 7)
@@ -315,7 +319,7 @@ bool magnet_present(struct spi_config spi_ctg) {
 void lis3mdl_data_rate(struct spi_config spi_ctg) {
 
 	uint8_t ctrl_reg1 = 0b00000010; // FAST MODE
-	uint8_t ctrl_reg4 = 0x0c;
+	uint8_t ctrl_reg4 = 0b00000000;
 	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG1, (uint8_t * ) &ctrl_reg1, sizeof(ctrl_reg1));
 	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG4, (uint8_t * ) &ctrl_reg4, sizeof(ctrl_reg4));
 }
@@ -431,7 +435,9 @@ void sensor_mode(uint8_t mode) {
 		}
 
 		if (mode == 0) {
+
 			lis3mdl_poweroff(spi_ctg);
+			k_msleep(20);
 		} else {
 			lis3mdl_init(spi_ctg);
 			k_msleep(20);
@@ -440,9 +446,10 @@ void sensor_mode(uint8_t mode) {
 }
 
 void lis3mdl_poweroff(struct spi_config spi_ctg) {
-	uint8_t ctrl_reg3 = 0x03; // power down
-	
-	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) ctrl_reg3, sizeof(ctrl_reg3));
+	// uint8_t ctrl_reg2 = 0x08; // reboot sensor
+	uint8_t ctrl_reg = 0b00000011; // power down
+	// lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG2, (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
 }
 
 static void connected(struct bt_conn *conn, uint8_t err)
@@ -458,9 +465,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	printk("Connected\n");
 
 	current_conn = bt_conn_ref(conn);
-	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
-	// pm_device_state_set(device_get_binding("GPIO_1"), PM_DEVICE_STATE_ACTIVE,NULL,NULL);
-	// pm_device_state_set(device_get_binding("UART_0"), PM_DEVICE_STATE_ACTIVE,NULL,NULL);
+	// gpio_pin_set(led1, PIN, 1);
+	// pm_device_state_set(cons, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
+	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);  
 	
 }
 
@@ -482,9 +489,9 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		current_conn = NULL;
 	
 	}
-	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
-	// pm_device_state_set(device_get_binding("GPIO_1"), PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
-	// pm_device_state_set(device_get_binding("UART_0"), PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+	// gpio_pin_set(led1, PIN, 0);
+	// pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 }
 
 
@@ -524,6 +531,41 @@ static struct bt_nus_cb nus_cb = {
 	.received = bt_receive_cb,
 	.sent = bt_sent_cb,
 };
+
+static void set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_pwr_lvl)
+{
+	struct bt_hci_cp_vs_write_tx_power_level *cp;
+	struct bt_hci_rp_vs_write_tx_power_level *rp;
+	struct net_buf *buf, *rsp = NULL;
+	int err;
+
+	buf = bt_hci_cmd_create(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
+				sizeof(*cp));
+	if (!buf) {
+		printk("Unable to allocate command buffer\n");
+		return;
+	}
+
+	cp = net_buf_add(buf, sizeof(*cp));
+	cp->handle = sys_cpu_to_le16(handle);
+	cp->handle_type = handle_type;
+	cp->tx_power_level = tx_pwr_lvl;
+
+	err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
+				   buf, &rsp);
+	if (err) {
+		uint8_t reason = rsp ?
+			((struct bt_hci_rp_vs_write_tx_power_level *)
+			  rsp->data)->status : 0;
+		printk("Set Tx power err: %d reason 0x%02x\n", err, reason);
+		return;
+	}
+
+	rp = (void *)rsp->data;
+	printk("Actual Tx Power: %d\n", rp->selected_tx_power);
+
+	net_buf_unref(rsp);
+}
 
 void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
@@ -665,18 +707,25 @@ void main(void)
 {
 	int rc;
 	int err = 0;
-	
+	int8_t txp = -30;
 	int ret;
+	// led1 = device_get_binding(LED0);
+	// if (led1 == NULL) {
+	// 	return;
+	// }
+
+	// ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
+	// if (ret < 0) {
+	// 	return;
+	// }
+	// gpio_pin_set(led1, PIN, 0);
 	hal_spi_init();
-	sensor_mode(1);
 
 	os_mgmt_register_group();
 	img_mgmt_register_group();
 	smp_bt_register();
 
 	bt_conn_cb_register(&conn_callbacks);
-	
-
 	err = bt_enable(NULL);
 	if (err) {
 		printk("Failed to initialize UEnable BT (err: %d)\n", err);
@@ -684,7 +733,9 @@ void main(void)
 	}
 
 	printk("Bluetooth initialized\n");
-	 
+	sensor_mode(0);
+
+	// set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp); 
 	k_sem_give(&ble_init_ok);
 
 	err = bt_nus_init(&nus_cb);
@@ -699,8 +750,6 @@ void main(void)
 		printk("Advertising failed to start (err %d)\n", err);
 	}
 
-	sensor_mode(0);
-
 	// char addr_s[BT_ADDR_LE_STR_LEN];
 	// bt_addr_le_t addr = {0};
 	// size_t count = 1;
@@ -708,11 +757,11 @@ void main(void)
 	// bt_id_get(&addr, &count);
 	// bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
 
+	// // printk("Testing hahaha\n");
+
 	// printk("Beacon started, advertising as %s\n", addr_s);
-	
-	// rc=pm_device_state_set("UART_0", PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
-	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
-	// pm_device_state_set(device_get_binding("GPIO_1"), PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+	// rc=pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 	// for (;;) {
 
 	// }
@@ -762,6 +811,7 @@ void ble_write_thread(void)
 					send_data(count);
 			}
 		}
+		// sensor_mode(0); // turn off all sensors
 		k_free(command);
 		k_free(buf);
 	}
