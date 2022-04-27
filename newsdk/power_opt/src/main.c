@@ -89,8 +89,8 @@ static K_SEM_DEFINE(ble_init_ok, 0, 1);
 // 									0X0C80, \
 // 									0X0F00, NULL)  //2s
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-									BT_GAP_ADV_SLOW_INT_MIN, \
-									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
+									BT_GAP_ADV_FAST_INT_MIN_2, \
+									BT_GAP_ADV_FAST_INT_MAX_2, NULL)  //1s
 
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;

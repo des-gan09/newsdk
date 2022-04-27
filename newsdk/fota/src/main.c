@@ -462,7 +462,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	printk("Connected\n");
 
 	current_conn = bt_conn_ref(conn);
-	gpio_pin_set(led1, PIN, 1);
+	// gpio_pin_set(led1, PIN, 1);
 	// pm_device_state_set(cons, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 	// pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);  
 	
@@ -486,7 +486,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		current_conn = NULL;
 	
 	}
-	gpio_pin_set(led1, PIN, 0);
+	// gpio_pin_set(led1, PIN, 0);
 	// pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 	// pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 }
@@ -706,16 +706,16 @@ void main(void)
 	int err = 0;
 	int8_t txp = -30;
 	int ret;
-	led1 = device_get_binding(LED0);
-	if (led1 == NULL) {
-		return;
-	}
+	// led1 = device_get_binding(LED0);
+	// if (led1 == NULL) {
+	// 	return;
+	// }
 
-	ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
-	if (ret < 0) {
-		return;
-	}
-	gpio_pin_set(led1, PIN, 0);
+	// ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
+	// if (ret < 0) {
+	// 	return;
+	// }
+	// gpio_pin_set(led1, PIN, 0);
 	hal_spi_init();
 
 	os_mgmt_register_group();

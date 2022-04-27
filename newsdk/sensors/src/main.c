@@ -247,10 +247,12 @@ bool magnet_present(struct spi_config spi_ctg) {
 }
 
 void mmc5983_init(struct spi_config spi_ctg) {
-
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t *) 0x20, sizeof(uint8_t)); //
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_1, (uint8_t *) 0x03, sizeof(uint8_t)); //
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t *) 0x08, sizeof(uint8_t)); //  
+	uint8_t reg_0 = 0x20;
+	uint8_t reg_1 = 0x03;
+	uint8_t reg_2 = 0x0f;
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t *) &reg_0, sizeof(reg_0)); //
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_1, (uint8_t *) &reg_1, sizeof(reg_1)); //
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t *) &reg_2, sizeof(reg_2)); //  
 }
 
 float convert(int16_t lsb) {
@@ -296,67 +298,85 @@ void mmc5983_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_dat
 void mmc5983_powerdown(struct spi_config spi_ctg) {
 	uint8_t ctrl_reg = 0x07; // power down
 
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t * ) ctrl_reg, sizeof(ctrl_reg));
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
 }
 
 void mmc5983_powerup(struct spi_config spi_ctg, uint8_t modr) {
 
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t * ) modr, sizeof(modr));
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_2, (uint8_t * ) &modr, sizeof(modr));
 }
 
 void mmc5983_reset(struct spi_config spi_ctg) {
 	uint8_t reset = 0x80;
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_1, (uint8_t * ) reset, sizeof(reset));
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_1, (uint8_t * ) &reset, sizeof(reset));
 	k_msleep(10);
 }
 
 void mmc5983_SET(struct spi_config spi_ctg) {
 	uint8_t set = 0x08;
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t * ) set, sizeof(set));
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t * ) &set, sizeof(set));
 }
 
 void mmc5983_RESET(struct spi_config spi_ctg) {
 	uint8_t reset = 0x10;
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t * ) reset, sizeof(reset));
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t * ) &reset, sizeof(reset));
 }
 
 void mmc5983_sampling(struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
-	uint8_t status = 0;
-	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, 0x01, sizeof(uint8_t)); //Initialise reading
+	uint8_t status;
+	uint8_t temp;
+	uint32_t start, end;
+	mmc5983_spi_read(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t *) &temp, sizeof(temp));
+	temp = temp | 0x01;
+	mmc5983_spi_write(spi_ctg, MMC5983_CTRL_REG_0, (uint8_t *) &temp, sizeof(temp)); //Initialise reading
 	do {
-		mmc5983_spi_read(spi_ctg, MMC5983_STATUS, (uint8_t *)status, sizeof(status));
+		mmc5983_spi_read(spi_ctg, MMC5983_STATUS, (uint8_t *) &status, sizeof(status));
+		// printk("%d\n", (status & 0x01));
 
-	} while ((status & 0x01));
-	mmc5983_get_xyz(spi_ctg, sensor_data);
+	} while ((status & 0x01)!= 1);
+	uint8_t data[7];
+
+	mmc5983_spi_read(spi_ctg, MMC5983_OUT_X_L, (uint8_t * ) &data, sizeof(data));
+	sensor_data->x_value = (uint32_t) (data[1] << 10 | data[0] << 2 | data[7] & 0xC0);
+	sensor_data->y_value = (uint32_t) (data[3] << 10 | data[2] << 2 | data[7] & 0x30);
+	sensor_data->z_value = (uint32_t) (data[5] << 10 | data[4] << 2 | data[7] & 0x0C);
 }
 
 void main(void)
 {
 	int rc;
 	int err = 0;
-	int count = 100;
+	int count = 10;
 	const struct device *cons;
-	struct sensor_data_t magnet;
-	// magnet = k_malloc(sizeof(struct sensor_data_t) * count);
-	cons=device_get_binding(CONSOLE_LABEL);
-	uint32_t temp_time; 
-	printk("CONS=%d\n",cons);
+	struct sensor_data_t *magnet;
+	magnet = k_malloc(sizeof(struct sensor_data_t) * count);
+	// cons=device_get_binding(CONSOLE_LABEL);
+	// uint32_t temp_time; 
+	// printk("CONS=%d\n",cons);
 	// bool led_is_on = true;
 	int ret;
 	hal_spi_init();
+	if(magnet_present(spi_ctg1)) {
+		printk("Sensor detected\n");
+	}
 	mmc5983_init(spi_ctg1);
-	printk("Sensor on\n");
-	while(1) {
-		// for (int i=0; i< count ; i++) {
-			magnet.sensor_id = 0;
-			magnet.timestamp = k_cyc_to_us_floor32(k_cycle_get_32());
-			mmc5983_sampling(spi_ctg1, &(magnet));	
-		// }
 
-		// for (int i=0; i< count ; i++) {
-			printk("%d %f %f %f %u\n",magnet.sensor_id, convert(magnet.x_value), convert(magnet.y_value), convert(magnet.z_value), magnet.timestamp);
-		// }
-		// k_sleep(K_MSEC(100));
+	// if(magnet_present) {
+	// 	printk("Sensor detected\n");
+	// }
+
+	while(1) {
+		for (int i=0; i < count; i++) { 
+			// int i = 0;
+			magnet[i].sensor_id = 0;
+			magnet[i].timestamp = k_cyc_to_us_floor32(k_cycle_get_32());
+			mmc5983_sampling(spi_ctg1, &(magnet[i]));	
+		}
+
+		for (int i=0; i< count; i++) {
+			printk("%d %f %f %f %u\n",magnet[i].sensor_id, convert(magnet[i].x_value), convert(magnet[i].y_value), convert(magnet[i].z_value), magnet[i].timestamp);
+		}
+		k_sleep(K_MSEC(1));
 	}
 }
 
