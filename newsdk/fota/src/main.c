@@ -402,6 +402,12 @@ void lis3mdl_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_dat
 	sensor_data->z_value = (data[5] << 8 | data[4]);
 }
 
+void lis3mdl_poweroff(struct spi_config spi_ctg) {
+	uint8_t ctrl_reg = 0b00000010; // power down
+
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) ctrl_reg, sizeof(ctrl_reg));
+}
+
 void sensor_mode(uint8_t mode) {
 
 	struct spi_config spi_ctg;
@@ -443,11 +449,7 @@ void sensor_mode(uint8_t mode) {
 	}
 }
 
-void lis3mdl_poweroff(struct spi_config spi_ctg) {
-	uint8_t ctrl_reg = 0b00000010; // power down
 
-	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) ctrl_reg, sizeof(ctrl_reg));
-}
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
