@@ -19,10 +19,13 @@
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
 #include <bluetooth/hci.h>
+#include <sys/byteorder.h>
 
 #include <bluetooth/services/nus.h>
 #include <string.h>
 #include <logging/log.h>
+
+// #include <bluetooth/hci_vs.h>
 
 // #include <mgmt/mcumgr/smp_bt.h>
 // #include "os_mgmt/os_mgmt.h"
@@ -87,12 +90,14 @@ static K_SEM_DEFINE(ble_init_ok, 0, 1);
 // 									0X0C80, \
 // 									0X0F00, NULL)  //2s
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-									BT_GAP_ADV_FAST_INT_MIN_2, \
-									BT_GAP_ADV_FAST_INT_MAX_2, NULL)  //1s
+									BT_GAP_ADV_SLOW_INT_MIN, \
+									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
+
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;
 
 const struct device *led1;
+const struct device *cons;
 
 struct uart_data_t {
 	void *fifo_reserved;
@@ -108,10 +113,6 @@ static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 };
-
-// static const struct bt_data sd[] = {
-// 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
-// };
 
 static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL,
@@ -305,6 +306,7 @@ bool magnet_present(struct spi_config spi_ctg) {
 	uint8_t whoamI;
 
 	lis3mdl_spi_read(spi_ctg, LIS3MDL_WHOAMI_REG, (uint8_t * ) &whoamI, sizeof(whoamI));
+	printk("Value: %d\n", whoamI);
 	return whoamI == LIS3MDL_ID;
 }
 
@@ -427,7 +429,9 @@ void sensor_mode(uint8_t mode) {
 		}
 
 		if (mode == 0) {
+
 			lis3mdl_poweroff(spi_ctg);
+			k_msleep(20);
 		} else {
 			lis3mdl_init(spi_ctg);
 			k_msleep(20);
@@ -436,133 +440,173 @@ void sensor_mode(uint8_t mode) {
 }
 
 void lis3mdl_poweroff(struct spi_config spi_ctg) {
-	uint8_t ctrl_reg = 0b00000010; // power down
-
-	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) ctrl_reg, sizeof(ctrl_reg));
+	// uint8_t ctrl_reg2 = 0x08; // reboot sensor
+	uint8_t ctrl_reg = 0b00000011; // power down
+	// lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG2, (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
 }
 
-static void connected(struct bt_conn *conn, uint8_t err)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
+// static void connected(struct bt_conn *conn, uint8_t err)
+// {
+// 	char addr[BT_ADDR_LE_STR_LEN];
 
-	if (err) {
-		printk("Connection failed (err %u)\n", err);
-		return;
-	}
+// 	if (err) {
+// 		printk("Connection failed (err %u)\n", err);
+// 		return;
+// 	}
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	printk("Connected\n");
+// 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+// 	printk("Connected\n");
 
-	current_conn = bt_conn_ref(conn);
-	gpio_pin_set(led1, PIN, 1);
+// 	current_conn = bt_conn_ref(conn);
+// 	// gpio_pin_set(led1, PIN, 1);
+// 	// pm_device_state_set(cons, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
+// 	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);  
 	
-}
+// }
 
-static void disconnected(struct bt_conn *conn, uint8_t reason)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
+// static void disconnected(struct bt_conn *conn, uint8_t reason)
+// {
+// 	char addr[BT_ADDR_LE_STR_LEN];
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+// 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Disconnected:(reason %u)", reason);
+// 	printk("Disconnected:(reason %u)", reason);
 
-	if (auth_conn) {
-		bt_conn_unref(auth_conn);
-		auth_conn = NULL;
-	}
+// 	if (auth_conn) {
+// 		bt_conn_unref(auth_conn);
+// 		auth_conn = NULL;
+// 	}
 
-	if (current_conn) {
-		bt_conn_unref(current_conn);
-		current_conn = NULL;
+// 	if (current_conn) {
+// 		bt_conn_unref(current_conn);
+// 		current_conn = NULL;
 	
-	}
-	gpio_pin_set(led1, PIN, 0);
-}
+// 	}
+// 	// gpio_pin_set(led1, PIN, 0);
+// 	// pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+// 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
+// }
 
 
-static struct bt_conn_cb conn_callbacks = {
-	.connected    = connected,
-	.disconnected = disconnected,
+// static struct bt_conn_cb conn_callbacks = {
+// 	.connected    = connected,
+// 	.disconnected = disconnected,
 	
 
-};
+// };
 
-static  uint32_t sent_cnt = 0;
-static inline void bt_sent_cb(struct bt_conn *conn)
-{
-    sent_cnt++;
-}
-static inline uint32_t get_sent_cnt(void)
-{
-    return sent_cnt;
-}
+// static  uint32_t sent_cnt = 0;
+// static inline void bt_sent_cb(struct bt_conn *conn)
+// {
+//     sent_cnt++;
+// }
+// static inline uint32_t get_sent_cnt(void)
+// {
+//     return sent_cnt;
+// }
 
-static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
-			uint16_t len)
-{
-	char addr[BT_ADDR_LE_STR_LEN] = {0};
+// static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
+// 			uint16_t len)
+// {
+// 	char addr[BT_ADDR_LE_STR_LEN] = {0};
 
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, ARRAY_SIZE(addr));
-	struct uart_data_t *buff;
-	buff = k_malloc(sizeof(*buff));
-	// printk("Received data \n");
-	memcpy(buff->data,data,len);
-	buff->len=len;
+// 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, ARRAY_SIZE(addr));
+// 	struct uart_data_t *buff;
+// 	buff = k_malloc(sizeof(*buff));
+// 	// printk("Received data \n");
+// 	memcpy(buff->data,data,len);
+// 	buff->len=len;
 
-	k_fifo_put(&fifo_transfer, buff);
-}
+// 	k_fifo_put(&fifo_transfer, buff);
+// }
 
-static struct bt_nus_cb nus_cb = {
-	.received = bt_receive_cb,
-	.sent = bt_sent_cb,
-};
+// static struct bt_nus_cb nus_cb = {
+// 	.received = bt_receive_cb,
+// 	.sent = bt_sent_cb,
+// };
 
-void ble_transfer(struct sensor_data_t *data, uint16_t count) {
+// static void set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_pwr_lvl)
+// {
+// 	struct bt_hci_cp_vs_write_tx_power_level *cp;
+// 	struct bt_hci_rp_vs_write_tx_power_level *rp;
+// 	struct net_buf *buf, *rsp = NULL;
+// 	int err;
 
-	static char buf[THROUGH_PACKET_SIZE];
-    uint32_t send_count = 0;
-    int err;
-    uint32_t send_count_uplimit = count;
-	uint8_t err_tick;
+// 	buf = bt_hci_cmd_create(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
+// 				sizeof(*cp));
+// 	if (!buf) {
+// 		printk("Unable to allocate command buffer\n");
+// 		return;
+// 	}
 
-	sent_cnt = 0; // clear sent counting
-	err_tick = 0; // Check connection is still there
+// 	cp = net_buf_add(buf, sizeof(*cp));
+// 	cp->handle = sys_cpu_to_le16(handle);
+// 	cp->handle_type = handle_type;
+// 	cp->tx_power_level = tx_pwr_lvl;
 
-    while(send_count < send_count_uplimit){
-		memset(buf,0,sizeof(buf));
-		sprintf(buf, "%d %f %f %f %u\n",data[send_count].sensor_id, convert(data[send_count].x_value), convert(data[send_count].y_value), convert(data[send_count].z_value),  data[send_count].timestamp);
-		if (err_tick > 100) {
+// 	err = bt_hci_cmd_send_sync(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
+// 				   buf, &rsp);
+// 	if (err) {
+// 		uint8_t reason = rsp ?
+// 			((struct bt_hci_rp_vs_write_tx_power_level *)
+// 			  rsp->data)->status : 0;
+// 		printk("Set Tx power err: %d reason 0x%02x\n", err, reason);
+// 		return;
+// 	}
 
-			// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
-			// IE: fs for unsent data 
-			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-			break;  
-		}
-        err = bt_nus_send(NULL, buf, sizeof(buf));
-        if (err) {
-            LOG_WRN("Failed to send data over BLE connection");
-			err_tick++;
-        }
-        else {
-            send_count++;
-        }
+// 	rp = (void *)rsp->data;
+// 	printk("Actual Tx Power: %d\n", rp->selected_tx_power);
 
-        if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
-             LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(10));
-        }
-		k_sleep(K_MSEC(1)); // why is this here?
-    }
+// 	net_buf_unref(rsp);
+// }
 
-	// Send acknoledge when data is done transferring
-	memset(buf,0,sizeof(buf));
-	sprintf(buf, "0\n");
-	err = bt_nus_send(NULL, buf, sizeof(buf));
-	if (err) {
-            LOG_WRN("Failed to send data over BLE connection");
-    }
-	// bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-}
+// void ble_transfer(struct sensor_data_t *data, uint16_t count) {
+
+// 	static char buf[THROUGH_PACKET_SIZE];
+//     uint32_t send_count = 0;
+//     int err;
+//     uint32_t send_count_uplimit = count;
+// 	uint8_t err_tick;
+
+// 	sent_cnt = 0; // clear sent counting
+// 	err_tick = 0; // Check connection is still there
+
+//     while(send_count < send_count_uplimit){
+// 		memset(buf,0,sizeof(buf));
+// 		sprintf(buf, "%d %f %f %f %u\n",data[send_count].sensor_id, convert(data[send_count].x_value), convert(data[send_count].y_value), convert(data[send_count].z_value),  data[send_count].timestamp);
+// 		if (err_tick > 20) {
+
+// 			// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
+// 			// IE: fs for unsent data 
+// 			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+// 			break;  
+// 		}
+//         err = bt_nus_send(NULL, buf, sizeof(buf));
+//         if (err) {
+//             LOG_WRN("Failed to send data over BLE connection");
+// 			err_tick++;
+//         }
+//         else {
+//             send_count++;
+//         }
+
+//         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
+//              LOG_WRN("Buffer getting tight, wait sometime here");
+//              k_sleep(K_MSEC(10));
+//         }
+// 		k_sleep(K_MSEC(1)); // why is this here?
+//     }
+
+// 	// Send acknoledge when data is done transferring
+// 	memset(buf,0,sizeof(buf));
+// 	sprintf(buf, "0\n");
+// 	err = bt_nus_send(NULL, buf, sizeof(buf));
+// 	if (err) {
+//             LOG_WRN("Failed to send data over BLE connection");
+//     }
+// 	// bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+// }
 
 void send_data(uint16_t count) {
 	struct sensor_data_t *magnet;
@@ -615,7 +659,7 @@ void send_data(uint16_t count) {
 				break;
 			}
 
-			if (temp_time - magnet[i-6].timestamp > 1000) {
+			else if (temp_time - magnet[i-6].timestamp > 999) {
 				lis3mdl_get_xyz(spi_ctg, &(magnet[i]));
 				magnet[i].timestamp = temp_time; // get timestamp in microseconds 
 				break;
@@ -630,151 +674,129 @@ void send_data(uint16_t count) {
 	
 }
 
-static char* process_command(struct uart_data_t *buf) {
-	char string[20]; // string test
-	memcpy(string, buf->data, sizeof(buf->data));
-	string[sizeof(buf->data)] = '\0';
-	printk("%s\n", string);
-	char *token;
-	char *rest = string;
-	char **array = (char**)k_malloc(3*sizeof(char*));
-	for (int j=0; j < 3; j++)
-		array[j] = (char*) k_malloc(sizeof(char)*10);
+// static char* process_command(struct uart_data_t *buf) {
+// 	char string[20]; // string test
+// 	memcpy(string, buf->data, sizeof(buf->data));
+// 	string[sizeof(buf->data)] = '\0';
+// 	printk("%s\n", string);
+// 	char *token;
+// 	char *rest = string;
+// 	char **array = (char**)k_malloc(3*sizeof(char*));
+// 	for (int j=0; j < 3; j++)
+// 		array[j] = (char*) k_malloc(sizeof(char)*10);
 
-	int i = 0;
-	while((token = strtok_r(rest, " ", &rest))) {
-		strcpy(array[i], token);
-		i++;
-		if (i > 2) {
-			break;
-		}
-	}
+// 	int i = 0;
+// 	while((token = strtok_r(rest, " ", &rest))) {
+// 		strcpy(array[i], token);
+// 		i++;
+// 		if (i > 2) {
+// 			break;
+// 		}
+// 	}
 
-	return array;
-}
+// 	return array;
+// }
 
 void main(void)
 {
-	int rc;
-	int err = 0;
-	const struct device *cons;
-	cons=device_get_binding(CONSOLE_LABEL);
-	printk("CONS=%d\n",cons);
-	
-	
-	// bool led_is_on = true;
-	int ret;
-	// led1 = device_get_binding(LED0);
-	// if (led1 == NULL) {
-	// 	return;
-	// }
-
-	led1 = device_get_binding(LED0);
-	if (led1 == NULL) {
-		return;
-	}
-	
-
-	// ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
-	ret = gpio_pin_configure(led1, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
-	if (ret < 0) {
-		return;
-	}
-	gpio_pin_set(led1, PIN, 0);
-	printk("here\n");
 	hal_spi_init();
-	// lis3mdl_init(spi_ctg1);
-	// sensor_mode(1);
-
-	/* Prevent deep sleep (system off) from being entered */
-	// pm_constraint_set(PM_STATE_SOFT_OFF);
-
-	// os_mgmt_register_group();
-	// img_mgmt_register_group();
-	// smp_bt_register();
-
-	char addr_s[BT_ADDR_LE_STR_LEN];
-	bt_addr_le_t addr = {0};
-	size_t count = 1;
-
-	bt_conn_cb_register(&conn_callbacks);
-	printk("here2\n");
-	err = bt_enable(NULL);
-	if (err) {
-		printk("Failed to initialize UEnable BT (err: %d)\n", err);
-		return;
-	}
-
-	printk("Bluetooth initialized\n");
-	sensor_mode(0); 
-	k_sem_give(&ble_init_ok);
-
-	err = bt_nus_init(&nus_cb);
-	if (err) {
-		printk("Failed to initialize UART service (err: %d)\n", err);
-		return;
-	}
-
-	err = bt_le_adv_start(BT_LE_ADV_CONN_SLOW, ad, ARRAY_SIZE(ad), sd,
-				ARRAY_SIZE(sd));
-	if (err) {
-		printk("Advertising failed to start (err %d)\n", err);
-	}
-
-	bt_id_get(&addr, &count);
-	bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
-
-	printk("Beacon started, advertising as %s\n", addr_s);
-}
-
-void ble_write_thread(void)
-{
-	/* Don't go any further until BLE is initialized */
-	k_sem_take(&ble_init_ok, K_FOREVER);
-	struct sensor_data_t *magnet;
-	uint16_t count;
-	for (;;) {
-		/* Wait indefinitely for data to be sent over bluetooth */
-		struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
-							K_FOREVER);
-		char **command = (char**)k_malloc(3*sizeof(char*));
-		for (int j=0; j < 3; j++)
-			command[j] = (char*) k_malloc(sizeof(char)*10);
-
-		command = process_command(buf);
-
-		if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
-			// printk("check\n");
-			if (strcmp(NULL, command[1]) == 0) {
-
-			}
+	struct sensor_data_t *data;
+	data = k_malloc(sizeof(struct sensor_data_t) * 7);
+	struct spi_config spi_ctg;
+	sensor_mode(1);
+	while(1) {
+		// for (int i=0; i < 7; i++) {
+		// 	data[i].sensor_id = i;
+		// 	data[i].timestamp =  k_cyc_to_us_floor32(k_cycle_get_32());
+		// 	switch (i)
+		// 	{
+		// 	case 0:
+		// 		spi_ctg = spi_ctg1;
+		// 		break;
+		// 	case 1:
+		// 		spi_ctg = spi_ctg2;
+		// 		break;
+		// 	case 2:
+		// 		spi_ctg = spi_ctg3;
+		// 		break;
+		// 	case 3:
+		// 		spi_ctg = spi_ctg4;
+		// 		break;
+		// 	case 4:
+		// 		spi_ctg = spi_ctg5;
+		// 		break;
+		// 	case 5:
+		// 		spi_ctg = spi_ctg6;
+		// 		break;
+		// 	case 6:
+		// 		spi_ctg = spi_ctg7;
+		// 		break;
+		// 	default:
+		// 		break;
+		// 	}
+		// 	lis3mdl_get_xyz(spi_ctg, &(data[i]));
+		// }
+		
+		// for (int i=0; i < 7; i++) {
+		// 	printk("%d %f %f %f %u\n", data[i].sensor_id, convert(data[i].x_value), convert(data[i].y_value), convert(data[i].z_value),  data[i].timestamp);
+		// }
+		// printk("test\n");
+		if (magnet_present(spi_ctg1)) {
+			// printk("OK\n");
 		}
-
-		if (strcmp(NULL, command[1]) == 0) {
-			if (strcmp("sample", command[0]) == 0) {
-				memset(buf, 0, sizeof(buf));
-				sprintf(buf, "Need sample size(1 - 10000)\n");
-				int err = bt_nus_send(NULL, buf, sizeof(buf));
-				if (err) {
-					LOG_WRN("Failed to send data over BLE connection");
-				}
-			}
-		}
-
-		// This part is shitty...
-		else if (strcmp("sample", command[0]) == 0) {
-			if (strcmp(NULL, command[1])!=0) {
-				count = atoi(command[1]);
-				if (count > 10000){
-
-				} else
-					send_data(count);
-			}
-		}
-		k_free(command);
-		k_free(buf);
+		k_msleep(100);
 	}
 }
 
-K_THREAD_DEFINE(ble_write_thread_id, STACKSIZE, ble_write_thread, NULL, NULL,
-		NULL, PRIORITY, 0, 0);
+// void ble_write_thread(void)
+// {
+// 	/* Don't go any further until BLE is initialized */
+// 	k_sem_take(&ble_init_ok, K_FOREVER);
+// 	struct sensor_data_t *magnet;
+// 	uint16_t count;
+// 	for (;;) {
+// 		/* Wait indefinitely for data to be sent over bluetooth */
+// 		struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
+// 							K_FOREVER);
+// 		char **command = (char**)k_malloc(3*sizeof(char*));
+// 		for (int j=0; j < 3; j++)
+// 			command[j] = (char*) k_malloc(sizeof(char)*10);
+
+// 		command = process_command(buf);
+
+// 		if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
+// 			// printk("check\n");
+// 			if (strcmp(NULL, command[1]) == 0) {
+
+// 			}
+// 		}
+
+// 		if (strcmp(NULL, command[1]) == 0) {
+// 			if (strcmp("sample", command[0]) == 0) {
+// 				memset(buf, 0, sizeof(buf));
+// 				sprintf(buf, "Need sample size(1 - 10000)\n");
+// 				int err = bt_nus_send(NULL, buf, sizeof(buf));
+// 				if (err) {
+// 					LOG_WRN("Failed to send data over BLE connection");
+// 				}
+// 			}
+// 		}
+
+// 		// This part is shitty...
+// 		else if (strcmp("sample", command[0]) == 0) {
+// 			if (strcmp(NULL, command[1])!=0) {
+// 				count = atoi(command[1]);
+// 				if (count > 10000){
+
+// 				} else
+// 					send_data(count);
+// 			}
+// 		}
+// 		// sensor_mode(0); // turn off all sensors
+// 		k_free(command);
+// 		k_free(buf);
+// 	}
+// }
+
+// K_THREAD_DEFINE(ble_write_thread_id, STACKSIZE, ble_write_thread, NULL, NULL,
+// 		NULL, PRIORITY, 0, 0);

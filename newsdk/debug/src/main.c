@@ -15,7 +15,6 @@
 #include <device.h>
 #include <pm/pm.h>
 #include <hal/nrf_gpio.h>
-#include <bluetooth/conn.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/uuid.h>
 #include <bluetooth/gatt.h>
@@ -80,7 +79,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define THROUGHPUT_PACKETS_TO_SEND  (200)
 #define NUMBER_THROUGHPUT_TESTS  (1)
-#define THROUGH_PACKET_SIZE 248
+#define THROUGH_PACKET_SIZE 50
 #define RECV_THRESHOLD_CNT 100
 #define RECV_THRESHOLD (THROUGH_PACKET_SIZE * RECV_THRESHOLD_CNT)
 #define NUM_SPEED_CACULATIONS (THROUGHPUT_PACKETS_TO_SEND/RECV_THRESHOLD_CNT)
@@ -90,20 +89,12 @@ static K_SEM_DEFINE(ble_init_ok, 0, 1);
 // #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
 // 									0X0C80, \
 // 									0X0F00, NULL)  //2s
-// #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-// 									BT_GAP_ADV_SLOW_INT_MIN, \
-// 									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
-
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-0x140, \
-0x140, NULL)  //400ms
+									BT_GAP_ADV_SLOW_INT_MIN, \
+									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
 
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;
-
-struct bt_conn_le_data_len_param *data_len;
-struct bt_le_conn_param *conn_param;
-struct bt_conn_le_tx_power *tx_power;
 
 const struct device *led1;
 const struct device *cons;
@@ -465,10 +456,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 	printk("Connected\n");
-	
-	
+
 	current_conn = bt_conn_ref(conn);
-	// bt_conn_le_data_len_update(current_conn, data_len);
 	// gpio_pin_set(led1, PIN, 1);
 	// pm_device_state_set(cons, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);  
@@ -498,25 +487,12 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 }
 
-// static void le_data_length_updated(struct bt_conn *conn,
-// 				   struct bt_conn_le_data_len_info *info)
-// {
-// 	if (!data_length_req) {
-// 		return;
-// 	}
-
-// 	printk("LE data len updated: TX (len: %d time: %d)"
-// 	       " RX (len: %d time: %d)\n", info->tx_max_len,
-// 	       info->tx_max_time, info->rx_max_len, info->rx_max_time);
-
-// 	data_length_req = false;
-// 	k_sem_give(&throughput_sem);
-// }
 
 static struct bt_conn_cb conn_callbacks = {
 	.connected    = connected,
 	.disconnected = disconnected,
-	// .le_data_len_updated = le_data_length_updated
+	
+
 };
 
 static  uint32_t sent_cnt = 0;
@@ -594,11 +570,11 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
 	sent_cnt = 0; // clear sent counting
 	err_tick = 0; // Check connection is still there
+	uint32_t start = k_uptime_get_32();
 
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
 		sprintf(buf, "%d %f %f %f %u\n",data[send_count].sensor_id, convert(data[send_count].x_value), convert(data[send_count].y_value), convert(data[send_count].z_value),  data[send_count].timestamp);
-		// static char buffer[240] = "0123456789abcdefghij0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ0123456789abcdefghij0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ0123456789ABCDEFGHIJ";
 		if (err_tick > 20) {
 
 			// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
@@ -606,7 +582,10 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 			break;  
 		}
+		uint32_t counts_cycles = k_cycle_get_32() ;
         err = bt_nus_send(NULL, buf, sizeof(buf));
+		counts_cycles = k_cycle_get_32() - counts_cycles;
+		printk("bt_nus_send() cycles: %d\n", counts_cycles);
         if (err) {
             LOG_WRN("Failed to send data over BLE connection");
 			err_tick++;
@@ -621,7 +600,8 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
         }
 		k_sleep(K_MSEC(1)); // why is this here?
     }
-
+	uint32_t end = k_uptime_get_32() - start;
+	LOG_INF("BLE write time:%u", end);
 	// Send acknoledge when data is done transferring
 	memset(buf,0,sizeof(buf));
 	sprintf(buf, "0\n");
@@ -766,12 +746,11 @@ void main(void)
 
 	bt_id_get(&addr, &count);
 	bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
-	// data_len->tx_max_len = 247;
-	// data_len->tx_max_time = 40;
 	
 	// printk("Testing hahaha\n");
 
-	// printk("Beacon started, advertising as %s\n", addr_s);
+	printk("Beacon started, advertising as %s\n", addr_s);
+	// rc=pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 	// for (;;) {
 
