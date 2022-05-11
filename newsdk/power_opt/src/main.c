@@ -723,14 +723,20 @@ static char* process_command(struct uart_data_t *buf) {
 
 void main(void)
 {
-	int rc;
 	int err = 0;
+<<<<<<< HEAD
 	int8_t txp = -30;
 	int ret;
 	pm_constraint_set(PM_STATE_SOFT_OFF);
 	hal_spi_init();
 	
 
+=======
+	pm_constraint_set(PM_STATE_STANDBY);
+	hal_spi_init();
+	sensor_mode(0);
+	
+>>>>>>> 5a84ee5773b345b0ce4c0dff99baebb7cadf9d37
 	os_mgmt_register_group();
 	img_mgmt_register_group();
 	smp_bt_register();
@@ -743,7 +749,7 @@ void main(void)
 	}
 
 	printk("Bluetooth initialized\n");
-	sensor_mode(0);
+	
 
 	// set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp); 
 	k_sem_give(&ble_init_ok);
@@ -760,6 +766,7 @@ void main(void)
 		printk("Advertising failed to start (err %d)\n", err);
 	}
 
+<<<<<<< HEAD
 	char addr_s[BT_ADDR_LE_STR_LEN];
 	bt_addr_le_t addr = {0};
 	size_t count = 1;
@@ -773,6 +780,11 @@ void main(void)
 
 	// printk("Beacon started, advertising as %s\n", addr_s);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
+=======
+
+	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
+	pm_power_state_force((struct pm_state_info){PM_STATE_STANDBY, 0, 0});  
+>>>>>>> 5a84ee5773b345b0ce4c0dff99baebb7cadf9d37
 	// for (;;) {
 
 	// }

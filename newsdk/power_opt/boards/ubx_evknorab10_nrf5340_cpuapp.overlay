@@ -22,7 +22,7 @@
 // };
 
 &uart0{
-	status = "okay";
+	status = "disabled";
 	current-speed = <115200>;
 	tx-pin = <45>;
 	rx-pin = <44>;
@@ -46,6 +46,7 @@
 	status = "disabled";
 };
 
+<<<<<<< HEAD
 // &pwm0 {
 // 	status = "disabled"
 // }
@@ -61,3 +62,8 @@
 // &qspi {
 // 	status = "disabled"
 // }
+=======
+&qspi {
+	status = "disabled";
+};
+>>>>>>> 5a84ee5773b345b0ce4c0dff99baebb7cadf9d37
