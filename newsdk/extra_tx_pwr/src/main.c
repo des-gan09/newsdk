@@ -1,12 +1,3 @@
-/*
-* Copyright (c) 2018 Nordic Semiconductor ASA
-*
-* SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
-*/
-
-/** @file
- *  @brief Nordic UART Bridge Service (NUS) sample with Power management
- */
 #include <stdio.h>
 #include <zephyr.h>
 #include <zephyr/types.h>
@@ -20,7 +11,6 @@
 #include <bluetooth/gatt.h>
 #include <bluetooth/hci.h>
 #include <sys/byteorder.h>
-// #include <drivers/power>
 
 #include <bluetooth/services/nus.h>
 #include <string.h>
@@ -40,32 +30,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define CONSOLE_LABEL DT_LABEL(DT_CHOSEN(zephyr_console))
 #define SLEEP_TIME_MS   1000
-#define LED0_NODE DT_ALIAS(led0)
-
-#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
-#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
-#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
-#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
-#else
-/* A build error here means your board isn't set up to blink an LED. */
-#error "Unsupported board: led0 devicetree alias is not defined"
-#define LED0	""
-#define PIN	0
-#define FLAGS	0
-#endif
-
-#define LED1_NODE DT_ALIAS(led1)
-#if DT_NODE_HAS_STATUS(LED1_NODE, okay)
-#define LED1	DT_GPIO_LABEL(LED1_NODE, gpios)
-#define PIN1	DT_GPIO_PIN(LED1_NODE, gpios)
-#define FLAGS1	DT_GPIO_FLAGS(LED1_NODE, gpios)
-#else
-/* A build error here means your board isn't set up to blink an LED. */
-#error "Unsupported board: led1 devicetree alias is not defined"
-#define LED1	""
-#define PIN1	0
-#define FLAGS1	0
-#endif
 
 #define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
 #define PRIORITY 7
@@ -89,6 +53,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define NUM_SPEED_CACULATIONS (THROUGHPUT_PACKETS_TO_SEND/RECV_THRESHOLD_CNT)
 
 static K_SEM_DEFINE(ble_init_ok, 0, 1);
+static K_SEM_DEFINE(throughput_sem, 0, 1);
 
 static volatile bool data_length_req;
 
@@ -169,7 +134,7 @@ struct spi_cs_control spi_cs6;
 struct spi_cs_control spi_cs7;
 
 struct sensor_data_t {
-	uint32_t sensor_id;
+	uint8_t sensor_id;
 	uint16_t x_value;
 	uint16_t y_value;
 	uint16_t z_value;
@@ -253,7 +218,6 @@ void hal_spi_init(void) {
 	spi_cs7.gpio_dt_flags = GPIO_ACTIVE_LOW;
 	spi_ctg7.cs = &spi_cs7;
 }
-
 
 void lis3mdl_spi_read(struct spi_config spi_ctg, uint8_t reg_addr, uint8_t *value, uint8_t len) {
 
@@ -354,7 +318,6 @@ void lis3mdl_init(struct spi_config spi_ctg) {
 uint8_t lis3mdl_status(struct spi_config spi_ctg) {
 	uint8_t ret;
 	lis3mdl_spi_read(spi_ctg, LIS3MDL_STATUS_REG, (uint8_t * ) &ret, sizeof(ret));
-	// i2c_reg_read_byte(i2c_device, LIS3MDL_I2C_ADDR, LIS3MDL_STATUS_REG, &ret);
 	return ((ret >> 4) & 0x01);
 }
 
@@ -369,7 +332,6 @@ void lis3mdl_get_x(struct spi_config spi_ctg, struct sensor_data_t *sensor_data)
 	lis3mdl_spi_read(spi_ctg, LIS3MDL_OUT_X_H, (uint8_t * ) &data[1], sizeof(data[1]));
 
 	sensor_data->x_value = (data[1] << 8 | data[0]);
-
 }
 
 void lis3mdl_get_y(struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
@@ -391,11 +353,6 @@ void lis3mdl_get_z(struct spi_config spi_ctg, struct sensor_data_t *sensor_data)
 void lis3mdl_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
 	uint8_t status;
 	uint8_t data[6];
-	// if (sensor_data->sensor_id == 0) {
-	// 	do{
-	// 		status = lis3mdl_status(spi_ctg);
-	// 	}while(!status);
-	// }
 
 	lis3mdl_spi_read(spi_ctg, LIS3MDL_OUT_X_L | (1 << 6), (uint8_t * ) &data, sizeof(data));
 	sensor_data->x_value = (data[1] << 8 | data[0]);
@@ -447,15 +404,11 @@ void sensor_mode(uint8_t mode) {
 }
 
 void lis3mdl_poweroff(struct spi_config spi_ctg) {
-	// uint8_t ctrl_reg2 = 0x08; // reboot sensor
 	uint8_t ctrl_reg = 0b00000011; // power down
-	// lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG2, (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
 	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
 }
 
-static int connection_configuration_set(const struct bt_le_conn_param *conn_param,
-			const struct bt_conn_le_phy_param *phy,
-			const struct bt_conn_le_data_len_param *data_len)
+static int connection_configuration_set(const struct bt_le_conn_param *conn_param)
 {
 	int err;
 	struct bt_conn_info info = {0};
@@ -465,42 +418,6 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 		LOG_ERR("Failed to get connection info %d", err);
 		return err;
 	}
-#if 0
-	if (info.role != BT_CONN_ROLE_MASTER) {
-		LOG_ERR("paramater update executed only on the central board");
-	}
-#endif
-	err = bt_conn_le_phy_update(current_conn, phy);
-	if (err) {
-		LOG_ERR("PHY update failed: %d\n", err);
-		return err;
-	}
-
-	LOG_INF("PHY update pending");
-	/* err = k_sem_take(&throughput_sem, THROUGHPUT_CONFIG_TIMEOUT);
-	if (err) {
-		LOG_ERR("PHY update timeout");
-		return err;
-	} */
-
-	if (info.le.data_len->tx_max_len != data_len->tx_max_len) {
-		data_length_req = true;
-
-		err = bt_conn_le_data_len_update(current_conn, data_len);
-		if (err) {
-			LOG_ERR("LE data length update failed: %d",
-				    err);
-			return err;
-		}
-
-		LOG_INF("LE Data length update pending");
-		/* err = k_sem_take(&throughput_sem, THROUGHPUT_CONFIG_TIMEOUT);
-		if (err) {
-			LOG_ERR("LE Data Length update timeout");
-			return err;
-		}*/
-	}
-
 	if (info.le.interval != conn_param->interval_max) {
 		err = bt_conn_le_param_update(current_conn, conn_param);
 		if (err) {
@@ -510,50 +427,39 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 		}
 
 		LOG_INF("Connection parameters update pending");
-		/* err = k_sem_take(&throughput_sem, THROUGHPUT_CONFIG_TIMEOUT);
-		if (err) {
-			LOG_ERR("Connection parameters update timeout");
-			return err;
-		} */
 	}
 
 	return 0;
 }
-#define INTERVAL_MIN	60	/* x * 1.25 ms */
-#define INTERVAL_MAX	60	/* x * 1.25 ms */
+#define INTERVAL_MIN	6	/* x * 1.25 ms */
+#define INTERVAL_MAX	6	/* x * 1.25 ms */
 
-static void ble_params_update_work_handler(struct k_work *item)
+void params_update()
 {
      const struct bt_le_conn_param *conn_param =
-            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 400);
+            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 42);
 
-     const struct bt_conn_le_phy_param *phy = BT_CONN_LE_PHY_PARAM_2M;
-     const struct bt_conn_le_data_len_param *data_len = BT_LE_DATA_LEN_PARAM_MAX;
-
-    connection_configuration_set(conn_param, phy, data_len);
+    connection_configuration_set(conn_param);
 }
-
-
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
 	int8_t rssi = 0xFF;
 	if (err) {
-		printk("Connection failed (err %u)\n", err);
+		LOG_ERR("Connection failed (err %u)", err);
 		return;
 	}
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-	printk("Connected\n");
+	LOG_INF("Connected\n");
 
 	current_conn = bt_conn_ref(conn);
 
 	// gpio_pin_set(led1, PIN, 1);
 	// pm_device_state_set(cons, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
-	k_work_init_delayable(&ble_params_update, ble_params_update_work_handler);
-	LOG_INF("MTU= %d", bt_nus_get_mtu(conn));
+	// k_work_init_delayable(&ble_params_update, ble_params_update_work_handler);
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -562,7 +468,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-	printk("Disconnected:(reason %u)", reason);
+	LOG_INF("Disconnected:(reason %u)", reason);
 
 	if (auth_conn) {
 		bt_conn_unref(auth_conn);
@@ -574,8 +480,6 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		current_conn = NULL;
 	
 	}
-	// gpio_pin_set(led1, PIN, 0);
-	// pm_device_state_set(cons, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 }
 
@@ -593,10 +497,10 @@ static const char *phy2str(uint8_t phy)
 
 static bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
 {
-	printk("Connection parameters update request received.\n");
-	printk("Minimum interval: %d, Maximum interval: %d\n",
+	LOG_INF("Connection parameters update request received.");
+	LOG_INF("Minimum interval: %d, Maximum interval: %d",
 	       param->interval_min, param->interval_max);
-	printk("Latency: %d, Timeout: %d\n", param->latency, param->timeout);
+	LOG_INF("Latency: %d, Timeout: %d", param->latency, param->timeout);
 
 	return true;
 }
@@ -604,7 +508,7 @@ static bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
 static void le_phy_updated(struct bt_conn *conn,
 			   struct bt_conn_le_phy_info *param)
 {
-	printk("LE PHY updated: TX PHY %s, RX PHY %s\n",
+	LOG_INF("LE PHY updated: TX PHY %s, RX PHY %s",
 	       phy2str(param->tx_phy), phy2str(param->rx_phy));
 
 	//k_sem_give(&throughput_sem);
@@ -617,8 +521,8 @@ static void le_data_length_updated(struct bt_conn *conn,
 		return;
 	}
 
-	printk("LE data len updated: TX (len: %d time: %d)"
-	       " RX (len: %d time: %d)\n", info->tx_max_len,
+	LOG_INF("LE data len updated: TX (len: %d time: %d)"
+	       " RX (len: %d time: %d)", info->tx_max_len,
 	       info->tx_max_time, info->rx_max_len, info->rx_max_time);
 
 	data_length_req = false;
@@ -628,11 +532,11 @@ static void le_data_length_updated(struct bt_conn *conn,
 static void le_param_updated(struct bt_conn *conn, uint16_t interval,
 			     uint16_t latency, uint16_t timeout)
 {
-	printk("Connection parameters updated.\n"
-	       " interval: %d, latency: %d, timeout: %d\n",
+	LOG_INF("Connection parameters updated.\n"
+	       " interval: %d, latency: %d, timeout: %d",
 	       interval, latency, timeout);
 
-	//k_sem_give(&throughput_sem);
+	k_sem_give(&throughput_sem);
 }
 
 
@@ -644,14 +548,6 @@ static struct bt_conn_cb conn_callbacks = {
     .le_phy_updated = le_phy_updated,
     .le_data_len_updated = le_data_length_updated
 };
-
-
-// static struct bt_conn_cb conn_callbacks = {
-// 	.connected    = connected,
-// 	.disconnected = disconnected,
-	
-
-// };
 
 static  uint32_t sent_cnt = 0;
 static inline void bt_sent_cb(struct bt_conn *conn)
@@ -671,7 +567,6 @@ static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, ARRAY_SIZE(addr));
 	struct uart_data_t *buff;
 	buff = k_malloc(sizeof(*buff));
-	// printk("Received data \n");
 	memcpy(buff->data,data,len);
 	buff->len=len;
 
@@ -693,7 +588,7 @@ void read_conn_rssi(uint16_t handle, int8_t *rssi)
 
 	buf = bt_hci_cmd_create(BT_HCI_OP_READ_RSSI, sizeof(*cp));
 	if (!buf) {
-		printk("Unable to allocate command buffer\n");
+		LOG_ERR("Unable to allocate command buffer");
 		return;
 	}
 
@@ -704,7 +599,7 @@ void read_conn_rssi(uint16_t handle, int8_t *rssi)
 	if (err) {
 		uint8_t reason = rsp ?
 			((struct bt_hci_rp_read_rssi *)rsp->data)->status : 0;
-		printk("Read RSSI err: %d reason 0x%02x\n", err, reason);
+		LOG_INF("Read RSSI err: %d reason 0x%02x", err, reason);
 		return;
 	}
 
@@ -724,7 +619,7 @@ static void set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_pwr_lvl
 	buf = bt_hci_cmd_create(BT_HCI_OP_VS_WRITE_TX_POWER_LEVEL,
 				sizeof(*cp));
 	if (!buf) {
-		printk("Unable to allocate command buffer\n");
+		LOG_INF("Unable to allocate command buffer");
 		return;
 	}
 
@@ -739,12 +634,12 @@ static void set_tx_power(uint8_t handle_type, uint16_t handle, int8_t tx_pwr_lvl
 		uint8_t reason = rsp ?
 			((struct bt_hci_rp_vs_write_tx_power_level *)
 			  rsp->data)->status : 0;
-		printk("Set Tx power err: %d reason 0x%02x\n", err, reason);
+		LOG_INF("Set Tx power err: %d reason 0x%02x", err, reason);
 		return;
 	}
 
 	rp = (void *)rsp->data;
-	printk("Actual Tx Power: %d\n", rp->selected_tx_power);
+	LOG_INF("Actual Tx Power: %d", rp->selected_tx_power);
 
 	net_buf_unref(rsp);
 }
@@ -760,7 +655,7 @@ static void get_tx_power(uint8_t handle_type, uint16_t handle, int8_t *tx_pwr_lv
 	buf = bt_hci_cmd_create(BT_HCI_OP_VS_READ_TX_POWER_LEVEL,
 				sizeof(*cp));
 	if (!buf) {
-		printk("Unable to allocate command buffer\n");
+		LOG_ERR("Unable to allocate command buffer");
 		return;
 	}
 
@@ -774,7 +669,7 @@ static void get_tx_power(uint8_t handle_type, uint16_t handle, int8_t *tx_pwr_lv
 		uint8_t reason = rsp ?
 			((struct bt_hci_rp_vs_read_tx_power_level *)
 			  rsp->data)->status : 0;
-		printk("Read Tx power err: %d reason 0x%02x\n", err, reason);
+		LOG_ERR("Read Tx power err: %d reason 0x%02x\n", err, reason);
 		return;
 	}
 
@@ -805,10 +700,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 			break;  
 		}
-        uint32_t counts_cycles = k_cycle_get_32() ;
         err = bt_nus_send(NULL, buf, sizeof(buf));
-		counts_cycles = k_cycle_get_32() - counts_cycles;
-		printk("bt_nus_send() cycles: %d\n", counts_cycles);
         if (err) {
             LOG_WRN("Failed to send data over BLE connection");
 			err_tick++;
@@ -819,9 +711,9 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
              LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(10));
+             k_sleep(K_MSEC(1));
         }
-		k_sleep(K_MSEC(1)); // why is this here?
+		k_sleep(K_MSEC(1));
     }
 	uint32_t end = k_uptime_get_32() - start;
 	LOG_INF("BLE write time:%u", end);
@@ -905,7 +797,7 @@ static char* process_command(struct uart_data_t *buf) {
 	char string[20]; // string test
 	memcpy(string, buf->data, sizeof(buf->data));
 	string[sizeof(buf->data)] = '\0';
-	printk("%s\n", string);
+	LOG_INF("Command received: %s", string);
 	char *token;
 	char *rest = string;
 	char **array = (char**)k_malloc(3*sizeof(char*));
@@ -928,7 +820,7 @@ void main(void)
 {
 	int rc;
 	int err = 0;
-	int8_t txp = 5;
+	int8_t txp = 3;
 	int ret;
 	int8_t txp_get = 0xFF;
 
@@ -942,33 +834,30 @@ void main(void)
 	bt_conn_cb_register(&conn_callbacks);
 	err = bt_enable(NULL);
 	if (err) {
-		printk("Failed to initialize UEnable BT (err: %d)\n", err);
+		LOG_ERR("Failed to initialize UEnable BT (err: %d)", err);
 		return;
 	}
 
-	printk("Bluetooth initialized\n");
+	LOG_INF("Bluetooth initialized");
 	sensor_mode(0);
 
 	get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
-	printk("-> default TXP = %d\n", txp_get);
+	LOG_INF("-> default TXP = %d", txp_get);
 
 	set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp);
 
-	// k_msleep(5000);
-	// get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
-	// printk("-> current TXP = %d\n", txp_get); 
 	k_sem_give(&ble_init_ok);
 
 	err = bt_nus_init(&nus_cb);
 	if (err) {
-		printk("Failed to initialize UART service (err: %d)\n", err);
+		LOG_ERR("Failed to initialize UART service (err: %d)", err);
 		return;
 	}
 
 	err = bt_le_adv_start(BT_LE_ADV_CONN_SLOW, ad, ARRAY_SIZE(ad), sd,
 				ARRAY_SIZE(sd));
 	if (err) {
-		printk("Advertising failed to start (err %d)\n", err);
+		LOG_ERR("Advertising failed to start (err %d)", err);
 	}
 
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
@@ -987,14 +876,14 @@ void ble_write_thread(void)
 		/* Wait indefinitely for data to be sent over bluetooth */
 		struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
 							K_FOREVER);
+		params_update();
 		char **command = (char**)k_malloc(3*sizeof(char*));
 		for (int j=0; j < 3; j++)
 			command[j] = (char*) k_malloc(sizeof(char)*10);
 
 		command = process_command(buf);
-
+		k_sem_take(&throughput_sem, K_FOREVER);
 		if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
-			// printk("check\n");
 			if (strcmp(NULL, command[1]) == 0) {
 
 			}

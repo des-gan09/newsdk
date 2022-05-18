@@ -679,7 +679,7 @@ uint32_t throughput_data_send(void)
         }
         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
              LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(10));
+             k_sleep(K_MSEC(1));
         }
     }
     while(get_sent_cnt() < THROUGHPUT_PACKETS_TO_SEND){
@@ -804,7 +804,7 @@ void ble_write_thread(void)
 
 		k_free(buf);
         */
-        k_sem_take(&throughput_sem, K_FOREVER);
+        // k_sem_take(&throughput_sem, K_FOREVER);
         while(tempcnt++  < NUMBER_THROUGHPUT_TESTS){
             
            throughput_temp += throughput_data_send();

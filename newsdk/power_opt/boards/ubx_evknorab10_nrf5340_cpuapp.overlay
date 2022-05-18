@@ -3,7 +3,7 @@
 	status = "okay";
 	sck-pin = <8>;  // original 8
 	miso-pin = <9>;  // original 9
-	mosi-pin = <32>;  // original 10
+	mosi-pin = <7>;  // original 10
 };
 
 // /{
@@ -46,7 +46,6 @@
 	status = "disabled";
 };
 
-<<<<<<< HEAD
 // &pwm0 {
 // 	status = "disabled"
 // }
@@ -62,8 +61,3 @@
 // &qspi {
 // 	status = "disabled"
 // }
-=======
-&qspi {
-	status = "disabled";
-};
->>>>>>> 5a84ee5773b345b0ce4c0dff99baebb7cadf9d37
