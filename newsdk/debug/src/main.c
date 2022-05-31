@@ -46,6 +46,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 struct wdt_timeout_cfg wdt_config;
 struct device *wdt;
 int wdt_channel_id;
+const struct device *gpio;
 
 static void wdt_callback(struct device *wdt_dev, int channel_id)
 {
@@ -57,7 +58,7 @@ static void wdt_callback(struct device *wdt_dev, int channel_id)
 
 	wdt_feed(wdt_dev, channel_id);
 
-	printk("Handled things..ready to reset\n");
+	LOG_INF("Handled things..ready to reset\n");
 	handled_event = true;
 }
 
@@ -68,7 +69,7 @@ void install_watchdog() {
 
 	/* Expire watchdog after 1000 milliseconds. */
 	wdt_config.window.min = 0U;
-	wdt_config.window.max = 90000U;
+	wdt_config.window.max = 605000U;
 
 	/* Set up watchdog callback. Jump into it when watchdog expired. */
 	wdt_config.callback = wdt_callback;
@@ -80,7 +81,7 @@ void install_watchdog() {
 	// 	wdt_channel_id = wdt_install_timeout(wdt, &wdt_config);
 	// }
 	if (wdt_channel_id < 0) {
-		printk("Watchdog install error\n");
+		LOG_ERR("Watchdog install error\n");
 		return;
 	}
 
@@ -96,11 +97,9 @@ void install_watchdog() {
 
 #define WAITTIME	3000		//WRC 3 seconds
 
-#define UART_BUF_SIZE CONFIG_BT_NUS_UART_BUFFER_SIZE
-#define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
-#define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
-
-#define NUM_SAMPLE 10
+// #define UART_BUF_SIZE CONFIG_BT_NUS_UART_BUFFER_SIZE
+// #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
+// #define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
 
 #define THROUGHPUT_PACKETS_TO_SEND  (200)
 #define NUMBER_THROUGHPUT_TESTS  (1)
@@ -133,7 +132,7 @@ static struct k_work_delayable ble_params_update;
 
 struct uart_data_t {
 	void *fifo_reserved;
-	uint8_t data[UART_BUF_SIZE];
+	uint8_t data[50];
 	uint16_t len;
 };
 
@@ -286,7 +285,7 @@ void lis3mdl_opearting_mode(struct spi_config spi_ctg) {
 
 void lis3mdl_block_data_update_set(struct spi_config spi_ctg) {
 
-	uint8_t ctrl_reg5 = 0x40;
+	uint8_t ctrl_reg5 = 0x40; // Could this be the culprit???
 	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG5, (uint8_t * ) &ctrl_reg5, sizeof(ctrl_reg5));
 }
 
@@ -404,6 +403,7 @@ void hal_spi_init(void) {
 	spi = device_get_binding("SPI_2");
 
 	if (spi == NULL) {
+		LOG_ERR("Cannot create Spi instance. No spi device found.");
 		return;
 	}
 
@@ -516,8 +516,6 @@ void params_update()
 
     connection_configuration_set(conn_param);
 }
-
-// int task_wdt_id;
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
@@ -897,14 +895,17 @@ void main(void)
 {
 	wdt = device_get_binding(DT_LABEL(DT_INST(0, nordic_nrf_watchdog)));
 	if (!wdt) {
-		printk("Cannot get WDT device\n");
+		LOG_ERR("Cannot get WDT device\n");
 		return;
 	}
-
+	gpio = device_get_binding("GPIO_1");
+	if (gpio == NULL) {
+		return;
+	}
 	int err = 0;
 	int8_t txp = 3;
 	int8_t txp_get = 0xFF;
-
+	
 	pm_constraint_set(PM_STATE_SOFT_OFF);
 	hal_spi_init();
 	
@@ -939,13 +940,9 @@ void main(void)
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
 	}
-
 	
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
-	// for (;;) {
-	// 	wdt_feed(wdt, wdt_channel_id);
-	// 	k_msleep(1000);
-	// }
+	// pm_device_state_set(gpio, PM_DEVICE_STATE_OFF,NULL,NULL);
 }
 
 void ble_write_thread(void)

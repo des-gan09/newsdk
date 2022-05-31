@@ -62,13 +62,19 @@ static void wdt_callback(struct device *wdt_dev, int channel_id)
 }
 
 void install_watchdog() {
+	wdt = device_get_binding(DT_LABEL(DT_INST(0, nordic_nrf_watchdog)));
+	if (!wdt) {
+		printk("Cannot get WDT device\n");
+		return;
+	}
+
 	/* Reset SoC when watchdog timer expires. */
 	int err;
 	wdt_config.flags = WDT_FLAG_RESET_SOC;
 
 	/* Expire watchdog after 1000 milliseconds. */
 	wdt_config.window.min = 0U;
-	wdt_config.window.max = 90000U;
+	wdt_config.window.max = 610000U;
 
 	/* Set up watchdog callback. Jump into it when watchdog expired. */
 	wdt_config.callback = wdt_callback;
@@ -85,7 +91,6 @@ void install_watchdog() {
 	}
 
 	err = wdt_setup(wdt, 0);
-	wdt_feed(wdt, wdt_channel_id);
 }
 
 #define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
@@ -531,9 +536,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 	LOG_INF("Connected");
-
 	current_conn = bt_conn_ref(conn);
 	install_watchdog();
+	wdt_feed(wdt, wdt_channel_id);
 	LOG_INF("Watchdog starting...");
 	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 }
@@ -790,7 +795,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
              LOG_WRN("Buffer getting tight, wait sometime here");
              k_sleep(K_MSEC(1));
         }
-		k_sleep(K_MSEC(1));
+		// k_sleep(K_MSEC(1));
     }
 	uint32_t end = k_uptime_get_32() - start;
 	LOG_INF("BLE write time:%u", end);
@@ -895,17 +900,14 @@ static char* process_command(struct uart_data_t *buf) {
 
 void main(void)
 {
-	wdt = device_get_binding(DT_LABEL(DT_INST(0, nordic_nrf_watchdog)));
-	if (!wdt) {
-		printk("Cannot get WDT device\n");
-		return;
-	}
+
 
 	int err = 0;
 	int8_t txp = 3;
 	int8_t txp_get = 0xFF;
 
 	pm_constraint_set(PM_STATE_SOFT_OFF);
+	
 	hal_spi_init();
 	
 	os_mgmt_register_group();
