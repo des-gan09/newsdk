@@ -432,7 +432,7 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 	return 0;
 }
 #define INTERVAL_MIN	6	/* x * 1.25 ms */
-#define INTERVAL_MAX	6	/* x * 1.25 ms */
+#define INTERVAL_MAX	24	/* x * 1.25 ms */
 
 void params_update()
 {
@@ -542,11 +542,11 @@ static void le_param_updated(struct bt_conn *conn, uint16_t interval,
 
 static struct bt_conn_cb conn_callbacks = {
 	.connected    = connected,
-	.disconnected = disconnected,
-    .le_param_req = le_param_req,
-    .le_param_updated = le_param_updated,
-    .le_phy_updated = le_phy_updated,
-    .le_data_len_updated = le_data_length_updated
+	.disconnected = disconnected
+    // .le_param_req = le_param_req,
+    // .le_param_updated = le_param_updated,
+    // .le_phy_updated = le_phy_updated,
+    // .le_data_len_updated = le_data_length_updated
 };
 
 static  uint32_t sent_cnt = 0;
@@ -713,7 +713,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
              LOG_WRN("Buffer getting tight, wait sometime here");
              k_sleep(K_MSEC(1));
         }
-		k_sleep(K_MSEC(1));
+		// k_sleep(K_MSEC(1));
     }
 	uint32_t end = k_uptime_get_32() - start;
 	LOG_INF("BLE write time:%u", end);
@@ -824,7 +824,7 @@ void main(void)
 	int ret;
 	int8_t txp_get = 0xFF;
 
-	pm_constraint_set(PM_STATE_SOFT_OFF);
+	// pm_constraint_set(PM_STATE_SOFT_OFF);
 	hal_spi_init();
 	
 	os_mgmt_register_group();
@@ -841,16 +841,16 @@ void main(void)
 	LOG_INF("Bluetooth initialized");
 	sensor_mode(0);
 
-	get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
-	LOG_INF("-> default TXP = %d", txp_get);
+	// get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
+	// LOG_INF("-> default TXP = %d", txp_get);
 
-	set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp);
+	// set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp);
 
 	k_sem_give(&ble_init_ok);
 
 	err = bt_nus_init(&nus_cb);
 	if (err) {
-		LOG_ERR("Failed to initialize UART service (err: %d)", err);
+		LOG_ERR("Failed to initialize UART0 service (err: %d)", err);
 		return;
 	}
 
@@ -876,7 +876,7 @@ void ble_write_thread(void)
 		/* Wait indefinitely for data to be sent over bluetooth */
 		struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
 							K_FOREVER);
-		params_update();
+		// params_update();
 		char **command = (char**)k_malloc(3*sizeof(char*));
 		for (int j=0; j < 3; j++)
 			command[j] = (char*) k_malloc(sizeof(char)*10);

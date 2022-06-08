@@ -205,8 +205,6 @@ struct sensor_data_t {
 	uint32_t timestamp;
 };
 
-
-
 void lis3mdl_spi_read(struct spi_config spi_ctg, uint8_t reg_addr, uint8_t *value, uint8_t len) {
 
 	uint8_t buffer_tx[2] = { reg_addr | LIS3MDL_SPI_READ, 0 };
@@ -512,7 +510,7 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 	return 0;
 }
 #define INTERVAL_MIN	6	/* x * 1.25 ms */
-#define INTERVAL_MAX	6	/* x * 1.25 ms */
+#define INTERVAL_MAX	12	/* x * 1.25 ms */
 
 void params_update()
 {

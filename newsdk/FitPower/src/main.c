@@ -7,6 +7,7 @@
 #include <drivers/spi.h> 
 #include "peripheral/lis3mdl.h"
 #include "hal/hal_spi.h"
+#include "hal/ble.h"
 #include <stdbool.h>
 
 #define LOG_MODULE_NAME fittag
@@ -15,5 +16,5 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 void main(void)
 {
 	hal_spi_init();
-
+	ble_init();
 }
