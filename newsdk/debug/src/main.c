@@ -897,10 +897,10 @@ void main(void)
 		LOG_ERR("Cannot get WDT device\n");
 		return;
 	}
-	gpio = device_get_binding("GPIO_1");
-	if (gpio == NULL) {
-		return;
-	}
+	// gpio = device_get_binding("GPIO_1");
+	// if (gpio == NULL) {
+	// 	return;
+	// }
 	int err = 0;
 	int8_t txp = 3;
 	int8_t txp_get = 0xFF;
@@ -922,7 +922,7 @@ void main(void)
 	LOG_INF("Bluetooth initialized");
 
 	get_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, &txp_get);
-	LOG_INF("-> default TXP = %d", txp_get);
+	LOG_INF("-> default. TXP = %d", txp_get);
 
 	set_tx_power(BT_HCI_VS_LL_HANDLE_TYPE_ADV, 0, txp);
 

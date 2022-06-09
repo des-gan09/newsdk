@@ -19,7 +19,7 @@ project(NONE)
 # NORDIC SDK APP START
 zephyr_library_include_directories(.)
 zephyr_library_include_directories(../movus_lib)
-target_sources(app PRIVATE src/main.c ../movus_lib/hal/hal_spi.c ../movus_lib/peripheral/lis3mdl.c )
+target_sources(app PRIVATE src/main.c ../movus_lib/hal/hal_spi.c ../movus_lib/peripheral/lis3mdl.c ../movus_lib/hal/ble.c)
 
 # NORDIC SDK APP END
 
