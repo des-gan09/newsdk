@@ -507,12 +507,12 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 	return 0;
 }
 #define INTERVAL_MIN	6	/* x * 1.25 ms */
-#define INTERVAL_MAX	6	/* x * 1.25 ms */
+#define INTERVAL_MAX	12	/* x * 1.25 ms */
 
 void params_update()
 {
      const struct bt_le_conn_param *conn_param =
-            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 42);
+            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 80);
 
     connection_configuration_set(conn_param);
 }
@@ -676,7 +676,7 @@ void read_conn_rssi(uint16_t handle, int8_t *rssi)
 			((struct bt_hci_rp_read_rssi *)rsp->data)->status : 0;
 		LOG_INF("Read RSSI err: %d reason 0x%02x", err, reason);
 		return;
-	}
+	}	
 
 	rp = (void *)rsp->data;
 	*rssi = rp->rssi;
@@ -768,13 +768,13 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
 		sprintf(buf, "%d %f %f %f %u\n",data[send_count].sensor_id, convert(data[send_count].x_value), convert(data[send_count].y_value), convert(data[send_count].z_value),  data[send_count].timestamp);
-		if (err_tick > 20) {
+		// if (err_tick > 2000) {
 
-			// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
-			// IE: fs for unsent data 
-			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-			break;  
-		}
+		// 	// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
+		// 	// IE: fs for unsent data 
+		// 	bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		// 	break;  
+		// }
         err = bt_nus_send(NULL, buf, sizeof(buf));
         if (err) {
             LOG_WRN("Failed to send data over BLE connection");
@@ -786,9 +786,8 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
              LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(1));
+             k_sleep(K_MSEC(10));
         }
-		k_sleep(K_MSEC(1));
     }
 	uint32_t end = k_uptime_get_32() - start;
 	LOG_INF("BLE write time:%u", end);
