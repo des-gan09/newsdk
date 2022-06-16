@@ -8,6 +8,8 @@
 #include <bluetooth/hci_vs.h>
 #include <bluetooth/conn.h>
 
+#include <zephyr.h>
+
 #include <logging/log.h>
 #include "ble.h"
 
@@ -19,8 +21,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 									BT_GAP_ADV_SLOW_INT_MIN, \
 									BT_GAP_ADV_SLOW_INT_MAX, NULL) 
 
-K_SEM_DEFINE(throughput_sem, 0, 1);
-K_FIFO_DEFINE(fifo_transfer);
+// K_SEM_DEFINE(ble_init_ok, 0, 1);
+// K_SEM_DEFINE(throughput_sem, 0, 1);
+struct k_sem ble_init_ok;
+struct k_sem throughput_sem;
+struct k_fifo fifo_transfer;
 
 struct bt_conn *current_conn;
 struct bt_conn *auth_conn;
@@ -60,6 +65,7 @@ void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 	buff->len=len;
 
 	k_fifo_put(&fifo_transfer, buff);
+	k_free(buff);
 }
 
 struct bt_nus_cb nus_cb = {
@@ -93,7 +99,7 @@ int connection_configuration_set(const struct bt_le_conn_param *conn_param) {
 
 #define INTERVAL_MIN	    6	    /* x * 1.25 ms  */
 #define INTERVAL_MAX	    6	    /* x * 1.25 ms  */
-#define INTERVAL_TIMEOUT    42      /* x * 10ms     */
+#define INTERVAL_TIMEOUT    1000      /* x * 10ms     */
 
 void params_update() {
     const struct bt_le_conn_param *conn_param =
@@ -124,6 +130,7 @@ void connected(struct bt_conn *conn, uint8_t err) {
 	LOG_INF("Connected");
 
 	current_conn = bt_conn_ref(conn);
+	params_update();
 	// install_watchdog();
 	// LOG_INF("Watchdog starting...");
 	// pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
@@ -200,6 +207,9 @@ struct bt_conn_cb conn_callbacks = {
 };
 
 void ble_init(void) {
+	k_sem_init(&ble_init_ok, 0, 1);
+	k_sem_init(&throughput_sem, 0, 1);
+	k_fifo_init(&fifo_transfer);
     int err;
     bt_conn_cb_register(&conn_callbacks);
     err = bt_enable(NULL);
@@ -219,4 +229,8 @@ void ble_init(void) {
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
 	}
+	k_sem_give(&ble_init_ok);
 }
+
+
+	

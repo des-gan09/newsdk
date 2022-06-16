@@ -13,6 +13,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 const struct device *spi;
 
+struct spi_config *spi_ctgx;
+uint8_t spi_count;
+
 struct spi_config spi_ctg1;
 struct spi_config spi_ctg2;
 struct spi_config spi_ctg3;

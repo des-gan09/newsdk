@@ -349,6 +349,23 @@ void lis3mdl_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_dat
 	sensor_data->z_value = (data[5] << 8 | data[4]);
 }
 
+void lis3mdl_poweroff(struct spi_config spi_ctg) {
+	// uint8_t ctrl_reg2 = 0x08; // reboot sensor
+	uint8_t ctrl_reg = 0b00000011; // power down
+	// lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG2, (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
+}
+
+void lis3mdl_powerlow(struct spi_config spi_ctg) {
+	uint8_t ctrl_reg = 0x20;
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
+}
+
+void lis3mdl_poweron(struct spi_config spi_ctg) {
+	uint8_t ctrl_reg = 0x20;
+	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
+}
+
 void sensor_mode(uint8_t mode) {
 
 	struct spi_config spi_ctg;
@@ -380,24 +397,25 @@ void sensor_mode(uint8_t mode) {
 		default:
 			break;
 		}
-
-		if (mode == 0) {
-
+		switch (mode)
+		{
+		case 0:
 			lis3mdl_poweroff(spi_ctg);
 			k_msleep(20);
-		} else {
+			break;
+		case 1:
 			lis3mdl_init(spi_ctg);
 			k_msleep(20);
+			break;
+		case 2:
+			lis3mdl_powerlow(spi_ctg);
+			k_msleep(20);
+		default:
+			break;
 		}
 	}
 }
 
-void lis3mdl_poweroff(struct spi_config spi_ctg) {
-	// uint8_t ctrl_reg2 = 0x08; // reboot sensor
-	uint8_t ctrl_reg = 0b00000011; // power down
-	// lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG2, (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
-	lis3mdl_spi_write(spi_ctg, LIS3MDL_CTRL_REG3, (uint8_t * ) &ctrl_reg, sizeof(ctrl_reg));
-}
 
 void hal_spi_init(void) {
 	spi = device_get_binding("SPI_2");
@@ -507,12 +525,12 @@ static int connection_configuration_set(const struct bt_le_conn_param *conn_para
 	return 0;
 }
 #define INTERVAL_MIN	6	/* x * 1.25 ms */
-#define INTERVAL_MAX	12	/* x * 1.25 ms */
+#define INTERVAL_MAX	6	/* x * 1.25 ms */
 
 void params_update()
 {
      const struct bt_le_conn_param *conn_param =
-            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 80);
+            BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, 1000);
 
     connection_configuration_set(conn_param);
 }
@@ -809,7 +827,7 @@ void send_data(uint16_t count) {
 	struct spi_config spi_ctg;
 
 	sensor_mode(1); // turn on all sensors
-
+	
 	for (int i=0; i < count; i++) {
 			if (count_temp == 7) {
 				count_temp = 0;
@@ -842,7 +860,7 @@ void send_data(uint16_t count) {
 				break;
 
 			}
-
+		// lis3mdl_poweron(spi_ctg);
 		magnet[i].sensor_id = count_temp;
 		while(1) {
 			uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
@@ -858,6 +876,7 @@ void send_data(uint16_t count) {
 				break;
 			}
 		}
+		// lis3mdl_powerlow(spi_ctg);
 		count_temp++;
 	}
 
@@ -984,13 +1003,13 @@ void ble_write_thread(void)
 		else if (strcmp("sample", command[0]) == 0) {
 			if (strcmp(NULL, command[1])!=0) {
 				count = atoi(command[1]);
-				if (count > 10000){
+				if (count > 10002){
 
 				} else
 					send_data(count);
 			}
 		}
-		// sensor_mode(0); // turn off all sensors
+		sensor_mode(0); // turn off all sensors
 		k_free(command);
 		k_free(buf);
 

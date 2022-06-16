@@ -6,6 +6,8 @@
 
 extern const struct device *spi;
 
+extern struct spi_config *spi_ctgx;
+extern uint8_t spi_count;
 extern struct spi_config spi_ctg1;
 extern struct spi_config spi_ctg2;
 extern struct spi_config spi_ctg3;

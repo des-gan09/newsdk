@@ -23,6 +23,7 @@
 #include <bluetooth/services/nus.h>
 #include <string.h>
 #include <logging/log.h>
+#include <math.h>
 
 // #include <mgmt/mcumgr/smp_bt.h>
 // #include "os_mgmt/os_mgmt.h"
@@ -365,18 +366,98 @@ void main(void)
 	// 	printk("Sensor detected\n");
 	// }
 
-	while(1) {
-		for (int i=0; i < count; i++) { 
-			// int i = 0;
-			magnet[i].sensor_id = 0;
-			magnet[i].timestamp = k_cyc_to_us_floor32(k_cycle_get_32());
-			mmc5983_sampling(spi_ctg1, &(magnet[i]));	
-		}
+	// while(1) {
+	// 	for (int i=0; i < count; i++) { 
+	// 		// int i = 0;
+	// 		magnet[i].sensor_id = 0;
+	// 		magnet[i].timestamp = k_cyc_to_us_floor32(k_cycle_get_32());
+	// 		mmc5983_sampling(spi_ctg1, &(magnet[i]));	
+	// 	}
 
-		for (int i=0; i< count; i++) {
-			printk("%d %f %f %f %u\n",magnet[i].sensor_id, convert(magnet[i].x_value), convert(magnet[i].y_value), convert(magnet[i].z_value), magnet[i].timestamp);
-		}
-		k_sleep(K_MSEC(1));
+	// 	for (int i=0; i< count; i++) {
+	// 		printk("%d %f %f %f %u\n",magnet[i].sensor_id, convert(magnet[i].x_value), convert(magnet[i].y_value), convert(magnet[i].z_value), magnet[i].timestamp);
+	// 	}
+	// 	k_sleep(K_MSEC(1));
+	// }
+		struct sensor_data_t junk;
+	junk.sensor_id = 0;
+	junk.timestamp = 0;
+	struct sensor_data_t *nost;
+	nost = k_malloc(sizeof(struct sensor_data_t) * 5);
+	lis3mdl_selftest_settings(spi_ctg);
+	while(!(lis3mdl_status(spi_ctg))) {
+		lis3mdl_get_xyz(spi_ctg, &junk);
 	}
+
+	for (int i=0; i < 5; i++) {
+		while(!lis3mdl_status(spi_ctg)) {
+			nost[i].sensor_id = 0;
+			nost[i].timestamp = 0;
+			lis3mdl_get_xyz(spi_ctg, &(nost[i]));
+		}
+	}
+    
+	float nost_x = 0.0;
+	float nost_y = 0.0;
+	float nost_z = 0.0;
+	printk("X:%f\n", lis3mdl_convert12(nost[0].x_value));
+	for (int i=0; i < 5; i++) {
+		nost_x = nost_x + lis3mdl_convert12(nost[i].x_value);
+		nost_y = nost_y + lis3mdl_convert12(nost[i].y_value);
+		nost_z = nost_z + lis3mdl_convert12(nost[i].z_value);
+	}
+
+	nost_x = nost_x / 5.0;
+	nost_y = nost_y / 5.0;
+	nost_z = nost_z / 5.0;
+	// turn on self-test
+	uint8_t ctrl_reg1 = 0x1d;
+	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG1 & ~LIS3MDL_SPI_READ), 
+			(uint8_t * ) &ctrl_reg1, sizeof(ctrl_reg1));
+	k_msleep(60);
+
+	while(!lis3mdl_status(spi_ctg)) {
+		lis3mdl_get_xyz(spi_ctg, &junk);
+	}
+
+	for (int i=0; i < 5; i++) {
+		while(!lis3mdl_status(spi_ctg)) {
+			lis3mdl_get_xyz(spi_ctg, &(nost[i]));
+		}
+	}
+
+	float st_x = 0.0;
+	float st_y = 0.0;
+	float st_z = 0.0;
+
+	for (int i=0; i < 5; i++) {
+		st_x = st_x + lis3mdl_convert12(nost[i].x_value);
+		st_y = st_y + lis3mdl_convert12(nost[i].y_value);
+		st_z = st_z + lis3mdl_convert12(nost[i].z_value);
+	}
+	st_x = st_x / 5.0;
+	st_y = st_y / 5.0;
+	st_z = st_z / 5.0;
+
+	float x = fabs(st_x - nost_x);
+	float y = fabs(st_y - nost_y);
+	float z = fabs(st_z - nost_z);
+    
+	// printk("X:%f\n", x);
+
+    ctrl_reg1 = 0x1c;
+	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG1 & ~LIS3MDL_SPI_READ), 
+			(uint8_t * ) &ctrl_reg1, sizeof(ctrl_reg1));
+	lis3mdl_poweroff(spi_ctg);
+	if (x >= MIN_ST_X && x <= MAX_ST_X) {
+		if (y >= MIN_ST_Y && y <= MAX_ST_Y){
+			if (z >= MIN_ST_Z && z <= MAX_ST_Z){
+				LOG_INF("SENSOR OK.");
+			}
+		}
+	}
+
+	free(nost);
+	
 }
 

@@ -20,6 +20,15 @@
 #define LIS3MDL_OUT_Z_H 		0x2DU
 #define LIS3MDL_ID 0x3DU
 
+#define MIN_ST_X 1.0
+#define MIN_ST_Y 1.0
+#define MIN_ST_Z 0.1
+#define MAX_ST_X 3.0
+#define MAX_ST_Y 3.0
+#define MAX_ST_Z 1.0
+
+#define NUM_SENSOR 7
+
 struct sensor_data_t {
 	uint8_t sensor_id;
 	uint16_t x_value;
@@ -34,11 +43,16 @@ void lis3mdl_operating_mode(struct spi_config spi_ctg);
 void lis3mdl_block_data_update_set(struct spi_config spi_ctg);
 extern bool lis3mdl_present(struct spi_config spi_ctg);
 extern void lis3mdl_init(struct spi_config spi_ctg);
+extern uint8_t lis3mdl_status(struct spi_config spi_ctg);
 extern void lis3mdl_get_x(struct spi_config spi_ctg, struct sensor_data_t *sensor_data);
 extern void lis3mdl_get_y(struct spi_config spi_ctg, struct sensor_data_t *sensor_data);
 extern void lis3mdl_get_z(struct spi_config spi_ctg, struct sensor_data_t *sensor_data);
 extern void lis3mdl_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_data);
 extern void lis3mdl_poweroff(struct spi_config spi_ctg);
 extern float lis3mdl_convert(int16_t lsb);
+extern float lis3mdl_convert12(int16_t lsb);
+extern void lis3mdl_selftest_settings(struct spi_config spi_ctg);
+extern bool lis3mdl_selftest(struct spi_config spi_ctg);
+extern void lis3mdl_validation(); 
 
 #endif

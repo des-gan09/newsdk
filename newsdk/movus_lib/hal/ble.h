@@ -15,6 +15,11 @@
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN	(sizeof(DEVICE_NAME) - 1)
 
+extern struct k_sem ble_init_ok;
+extern struct k_sem throughput_sem;
+extern struct k_fifo fifo_transfer;
+extern uint32_t sent_cnt;
+
 struct uart_data_t {
 	void *fifo_reserved;
 	uint8_t data[50];
