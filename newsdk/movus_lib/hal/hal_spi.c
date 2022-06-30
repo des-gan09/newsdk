@@ -164,3 +164,4 @@ void hal_spi_write(struct spi_config spi_ctg, uint8_t reg_addr, uint8_t *value, 
 		LOG_WRN("Fail SPI write");
 	}
 }
+

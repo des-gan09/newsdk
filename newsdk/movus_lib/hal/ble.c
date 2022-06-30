@@ -9,9 +9,16 @@
 #include <bluetooth/conn.h>
 
 #include <zephyr.h>
+// FOTA 
+#include <mgmt/mcumgr/smp_bt.h>
+#include "os_mgmt/os_mgmt.h"
+#include "img_mgmt/img_mgmt.h"
 
 #include <logging/log.h>
 #include "ble.h"
+#include "wdt.h"
+
+
 
 #define LOG_MODULE_NAME ble
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
@@ -97,10 +104,6 @@ int connection_configuration_set(const struct bt_le_conn_param *conn_param) {
 	return 0;
 }
 
-#define INTERVAL_MIN	    6	    /* x * 1.25 ms  */
-#define INTERVAL_MAX	    6	    /* x * 1.25 ms  */
-#define INTERVAL_TIMEOUT    1000      /* x * 10ms     */
-
 void params_update() {
     const struct bt_le_conn_param *conn_param =
             BT_LE_CONN_PARAM(INTERVAL_MIN, INTERVAL_MAX, 0, INTERVAL_TIMEOUT);
@@ -131,6 +134,7 @@ void connected(struct bt_conn *conn, uint8_t err) {
 
 	current_conn = bt_conn_ref(conn);
 	params_update();
+	wdt_feed(wdt, wdt_channel_id);
 	// install_watchdog();
 	// LOG_INF("Watchdog starting...");
 	// pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
@@ -211,6 +215,11 @@ void ble_init(void) {
 	k_sem_init(&throughput_sem, 0, 1);
 	k_fifo_init(&fifo_transfer);
     int err;
+
+	os_mgmt_register_group();
+	img_mgmt_register_group();
+	smp_bt_register();
+
     bt_conn_cb_register(&conn_callbacks);
     err = bt_enable(NULL);
 	if (err) {

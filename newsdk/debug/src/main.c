@@ -69,7 +69,7 @@ void install_watchdog() {
 
 	/* Expire watchdog after 1000 milliseconds. */
 	wdt_config.window.min = 0U;
-	wdt_config.window.max = 605000U;
+	wdt_config.window.max = 1200000U;
 
 	/* Set up watchdog callback. Jump into it when watchdog expired. */
 	wdt_config.callback = wdt_callback;
@@ -86,7 +86,7 @@ void install_watchdog() {
 	}
 
 	err = wdt_setup(wdt, 0);
-	wdt_feed(wdt, wdt_channel_id);
+	LOG_INF("Watchdog installed");
 }
 
 #define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
@@ -113,12 +113,12 @@ static K_SEM_DEFINE(throughput_sem, 0, 1);
 
 static volatile bool data_length_req;
 
-// #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-// 									0X0C80, \
-// 									0X0F00, NULL)  //2s
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
-									BT_GAP_ADV_SLOW_INT_MIN, \
-									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
+									0X0320, \
+									0X0400, NULL)  //2s
+// #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
+// 									BT_GAP_ADV_SLOW_INT_MIN, \
+// 									BT_GAP_ADV_SLOW_INT_MAX, NULL)  //1s
 
 static struct bt_conn *current_conn;
 static struct bt_conn *auth_conn;
@@ -549,8 +549,12 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	LOG_INF("Connected");
 
 	current_conn = bt_conn_ref(conn);
-	install_watchdog();
-	LOG_INF("Watchdog starting...");
+	
+	err = wdt_feed(wdt, wdt_channel_id);
+	if (err != 0) {
+		LOG_ERR("Watchdog error: %d", err);
+	}
+	LOG_INF("Feeding watchdog");
 	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 }
 
@@ -890,7 +894,7 @@ static char* process_command(struct uart_data_t *buf) {
 	char string[20]; // string test
 	memcpy(string, buf->data, sizeof(buf->data));
 	string[sizeof(buf->data)] = '\0';
-	LOG_INF("Command received: %s", string);
+	LOG_INF("Command received: %s", log_strdup(string));
 	char *token;
 	char *rest = string;
 	char **array = (char**)k_malloc(3*sizeof(char*));
@@ -916,6 +920,8 @@ void main(void)
 		LOG_ERR("Cannot get WDT device\n");
 		return;
 	}
+
+	install_watchdog();
 	// gpio = device_get_binding("GPIO_1");
 	// if (gpio == NULL) {
 	// 	return;

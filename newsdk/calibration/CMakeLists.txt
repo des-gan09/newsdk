@@ -17,19 +17,8 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(NONE)
 
 # NORDIC SDK APP START
-zephyr_library_include_directories(.)
-zephyr_library_include_directories(../movus_lib)
-target_sources(app PRIVATE 
-    src/main.c 
-    ../movus_lib/hal/hal_spi.c 
-    ../movus_lib/peripheral/lis3mdl.c 
-    ../movus_lib/hal/ble.c
-    ../movus_lib/hal/wdt.c
-    src/ble_transfer.c
-    src/sample.c
-    )
+target_sources(app PRIVATE src/main.c )
 
 # NORDIC SDK APP END
 
-
-
+zephyr_library_include_directories(.)

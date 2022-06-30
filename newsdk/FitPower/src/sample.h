@@ -9,13 +9,20 @@
 #define VALIDATION 3
 
 #include <stdio.h>
+#include <zephyr.h>
 #include "peripheral/lis3mdl.h"
+
+extern struct k_fifo fifo_stream;
 
 struct command_t {
     uint8_t mode;
     uint32_t samples;
 };
 
-struct sensor_data_t *magnet;
+struct stream_data_t {
+	void *fifo_reserved;
+	struct sensor_data_t data;
+	uint16_t len;
+};
 
 #endif

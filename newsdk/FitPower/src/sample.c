@@ -1,4 +1,6 @@
 #include <string.h>
+#include <zephyr/types.h>
+#include <sys/byteorder.h>
 #include "sample.h"
 #include "peripheral/lis3mdl.h"
 #include "hal/ble.h"
@@ -10,7 +12,8 @@
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define THROUGH_PACKET_SIZE 50
-
+struct k_fifo fifo_stream;
+struct k_sem stream_sem;
 void sensor_mode(uint8_t mode) {
 
 	for (int i=0; i < spi_count; i++) {
@@ -33,6 +36,22 @@ void sensor_mode(uint8_t mode) {
 	}
 }
 
+void streaming_data() {
+	struct stream_data_t *stream;
+	struct sensor_data_t magnet;
+	magnet.sensor_id = 0;
+	uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
+	if (k_cyc_to_us_floor32(k_cycle_get_32()) - temp_time > 999) {
+		lis3mdl_get_xyz(spi_ctgx[0], &magnet);
+		magnet.timestamp = temp_time; // get timestamp in microseconds 
+	}
+	stream = k_malloc(sizeof(*stream));
+	stream->data = magnet;
+	stream->len = sizeof(magnet);
+
+	k_fifo_put(&fifo_stream, stream);
+}
+
 void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
 	static char buf[THROUGH_PACKET_SIZE];
@@ -46,14 +65,18 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	uint32_t start = k_uptime_get_32();
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
-		sprintf(buf, "%d %ld %ld %ld %u\n",data[send_count].sensor_id, data[send_count].x_value, data[send_count].y_value, data[send_count].z_value,  data[send_count].timestamp);
-		// if (err_tick > 2000) {
+		sprintf(buf, "%d %u %u %u %u\n",data[send_count].sensor_id, 
+				data[send_count].x_value, 
+				data[send_count].y_value, 
+				data[send_count].z_value,  
+				data[send_count].timestamp);
+		if (err_tick > 200) {
 
-		// 	// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
-		// 	// IE: fs for unsent data 
-		// 	bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
-		// 	break;  
-		// }
+			// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
+			// IE: fs for unsent data 
+			bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+			break;  
+		}
         err = bt_nus_send(NULL, buf, sizeof(buf));
         if (err) {
             LOG_WRN("Failed to send data over BLE connection");
@@ -82,11 +105,11 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
 
 void sample_data(uint16_t count) {
+	
 	struct sensor_data_t *magnet;
 	magnet = k_malloc(sizeof(struct sensor_data_t) * count);
 
 	uint8_t count_temp = 0;
-	struct spi_config spi_ctg;
 
 	sensor_mode(1); // turn on all sensors
 	
@@ -94,8 +117,6 @@ void sample_data(uint16_t count) {
         if (count_temp == spi_count) {
             count_temp = 0;
         }
-
-			
 		// lis3mdl_poweron(spi_ctg);
 		magnet[i].sensor_id = count_temp;
 		while(1) {
@@ -121,7 +142,7 @@ void sample_data(uint16_t count) {
 	k_free(magnet);
 }
 
-static void process_command(struct uart_data_t *buf, struct command_t *command) {
+static uint8_t process_command(struct uart_data_t *buf, struct command_t *command) {
 	char string[51]; // string test
 	memcpy(string, buf->data, sizeof(buf->data));
 	string[sizeof(buf->data)] = '\0';
@@ -144,44 +165,49 @@ static void process_command(struct uart_data_t *buf, struct command_t *command) 
     if (strcmp("sample", array[0]) == 0) {
         command->mode = FULL_SAMPLE;
         command->samples = atoi(array[1]);
+		return 0;
     } else if (strcmp("real", array[0]) == 0) {
         command->mode = REALTIME_SAMPLE;
         command->samples = 0;
+		return 0;
     } else if (strcmp("check", array[0]) == 0) {
         command->mode = VALIDATION;
         command->samples = 0;
+		return 0;
     }
+	return 1;
 }
 
 void sampling_thread() {
+	k_fifo_init(&fifo_stream);
+	k_sem_init(&stream_sem, 0 , 1);
     k_sem_take(&ble_init_ok, K_FOREVER);
     // k_sem_take(&throughput_sem, K_FOREVER);
-    uint16_t count;
     for(;;) {
         struct command_t command;
         struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
 							K_FOREVER);
-        // printk("SPIs: %d", spi_count);
         k_sem_take(&throughput_sem, K_FOREVER);
-        process_command(buf, &command);
-        switch (command.mode)
-        {
-        case FULL_SAMPLE:
-            LOG_INF("Taking %d samples.", command.samples);
-            sample_data(command.samples);
-            break;
-        case REALTIME_SAMPLE:
-            LOG_INF("Sampling in realtime.");
-            break;
-        case VALIDATION:
-            lis3mdl_validation();
-            break;
-        default:
-            break;
-        }
-        // // sensor_mode(0); // turn off all sensors
-        // k_free(command);
-        // k_free(buf); 
+		if (!process_command(buf, &command)) {
+			switch (command.mode)
+			{
+			case FULL_SAMPLE:
+				LOG_INF("Taking %d samples.", command.samples);
+				sample_data(command.samples);
+				break;
+			case REALTIME_SAMPLE:
+				LOG_INF("Sampling in realtime.");
+				k_sem_give(&stream_sem);
+				streaming_data();
+				break;
+			case VALIDATION:
+				lis3mdl_validation();
+				break;
+			default:
+				break;
+			}
+		}
+		k_free(buf);
     }
 }
 

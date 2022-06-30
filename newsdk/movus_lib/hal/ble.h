@@ -15,10 +15,15 @@
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN	(sizeof(DEVICE_NAME) - 1)
 
+#define INTERVAL_MIN	    6	    /* x * 1.25 ms  */
+#define INTERVAL_MAX	    6	    /* x * 1.25 ms  */
+#define INTERVAL_TIMEOUT    1000      /* x * 10ms     */
+
 extern struct k_sem ble_init_ok;
 extern struct k_sem throughput_sem;
 extern struct k_fifo fifo_transfer;
 extern uint32_t sent_cnt;
+extern struct bt_conn *current_conn;
 
 struct uart_data_t {
 	void *fifo_reserved;

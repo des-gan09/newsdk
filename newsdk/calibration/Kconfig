@@ -33,16 +33,4 @@ config BT_NUS_UART_RX_WAIT_TIME
 	help
 	  Wait for RX complete event time in milliseconds
 
-config FITPOWER_SERIAL_SAMPLING
-	bool "Sampling via serial"
-	default n
-	help
-	  Enable sampling via serial UART instead of BLE.
-
-config WATCHDOG_DURATION
-	int "Watchdog duration"
-	default 1200000
-	help
-	  Duration before watchdog timer resets the device
-
 endmenu
