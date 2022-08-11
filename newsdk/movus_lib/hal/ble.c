@@ -14,9 +14,12 @@
 #include "os_mgmt/os_mgmt.h"
 #include "img_mgmt/img_mgmt.h"
 
+#include <pm/pm.h>
+
 #include <logging/log.h>
 #include "ble.h"
 #include "wdt.h"
+#include "hal/hal_spi.h"
 
 
 
@@ -27,6 +30,10 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
 									BT_GAP_ADV_SLOW_INT_MIN, \
 									BT_GAP_ADV_SLOW_INT_MAX, NULL) 
+
+// #define BT_LE_ADV_CONN_SLOW BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, \
+// 									0x320, \
+// 									0x340, NULL) 
 
 // K_SEM_DEFINE(ble_init_ok, 0, 1);
 // K_SEM_DEFINE(throughput_sem, 0, 1);
@@ -137,7 +144,7 @@ void connected(struct bt_conn *conn, uint8_t err) {
 	wdt_feed(wdt, wdt_channel_id);
 	// install_watchdog();
 	// LOG_INF("Watchdog starting...");
-	// pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
+	pm_device_state_set(spi, PM_DEVICE_STATE_ACTIVE,NULL,NULL);
 }
 
 void disconnected(struct bt_conn *conn, uint8_t reason) {
@@ -157,7 +164,7 @@ void disconnected(struct bt_conn *conn, uint8_t reason) {
 	
 	}
 
-	// pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
+	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);  
 }
 
 bool ble_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
@@ -227,6 +234,8 @@ void ble_init(void) {
 		return;
 	}
     LOG_INF("Bluetooth initialized");
+	bt_addr_le_t address;
+
     err = bt_nus_init(&nus_cb);
 	if (err) {
 		LOG_ERR("Failed to initialize UART service (err: %d)", err);
@@ -238,6 +247,13 @@ void ble_init(void) {
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
 	}
+
+	size_t count = 1;
+	char addr_s[BT_ADDR_LE_STR_LEN];
+	bt_addr_le_t addr = {0};
+	bt_id_get(&addr, &count);
+	bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
+	LOG_INF("BLE MAC address:%s", log_strdup(addr_s));
 	k_sem_give(&ble_init_ok);
 }
 

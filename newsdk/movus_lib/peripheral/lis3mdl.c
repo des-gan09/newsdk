@@ -12,15 +12,19 @@
 #define LOG_MODULE_NAME lis3mdl
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
+struct spi_config *spi_ctgx;
+
 void lis3mdl_data_rate(struct spi_config spi_ctg) {
-    uint8_t ctrl_reg2 = 0b01100000; // 16 gauss
-	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG2 & ~LIS3MDL_SPI_READ), (uint8_t * ) &ctrl_reg2, sizeof(ctrl_reg2));
+    uint8_t ctrl_reg1 = 0b00000010; // FAST MODE
+	uint8_t ctrl_reg4 = 0b00000000;
+	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG1 & ~LIS3MDL_SPI_READ), (uint8_t * ) &ctrl_reg1, sizeof(ctrl_reg1));
+	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG4 & ~LIS3MDL_SPI_READ), (uint8_t * ) &ctrl_reg4, sizeof(ctrl_reg4));
 }
 void lis3mdl_operating_mode(struct spi_config spi_ctg) {
     uint8_t ctrl_reg3 = 0b00000000; // Continuous conversion mode
 	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG3 & ~LIS3MDL_SPI_READ), (uint8_t * ) &ctrl_reg3, sizeof(ctrl_reg3));
 }
-
+	
 void lis3mdl_block_data_update_set(struct spi_config spi_ctg) {
 	uint8_t ctrl_reg5 = 0x40;
 	hal_spi_write(spi_ctg, (LIS3MDL_CTRL_REG5 & ~LIS3MDL_SPI_READ), (uint8_t * ) &ctrl_reg5, sizeof(ctrl_reg5));
@@ -250,7 +254,7 @@ bool lis3mdl_selftest(struct spi_config spi_ctg) {
 
 	}
 	spi_ctgx = k_malloc(sizeof(struct spi_config) * spi_count);
-
+	uint8_t temp_count = 0;
 	for (int i=0; i < NUM_SENSOR; i++) {
 		switch (i)
 		{
@@ -280,8 +284,42 @@ bool lis3mdl_selftest(struct spi_config spi_ctg) {
 		}
 
 		if(lis3mdl_selftest(spi_ctg)) {
-			spi_ctgx[i] = spi_ctg;
+			// LOG_INF("Sensor %d %d added.", spi_ctg.cs->gpio_pin, i);
+			spi_ctgx[temp_count] = spi_ctg;
+			temp_count++;
 		}
 	}
  }
 
+void sensoroff() {
+	struct spi_config spi_ctg;
+	for (int i=0; i < NUM_SENSOR; i++) {
+		switch (i)
+		{
+		case 0:
+			spi_ctg = spi_ctg1;
+			break;
+		case 1:
+			spi_ctg = spi_ctg2;
+			break;
+		case 2:
+			spi_ctg = spi_ctg3;
+			break;
+		case 3:
+			spi_ctg = spi_ctg4;
+			break;
+		case 4:
+			spi_ctg = spi_ctg5;
+			break;
+		case 5:
+			spi_ctg = spi_ctg6;
+			break;
+		case 6:
+			spi_ctg = spi_ctg7;
+			break;
+		default:
+			break;
+		}
+		lis3mdl_poweroff(spi_ctg);
+	}
+}

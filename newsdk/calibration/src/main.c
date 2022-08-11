@@ -433,7 +433,7 @@ void transfer(struct sensor_data_t *data, uint16_t count) {
 	uint32_t start = k_uptime_get_32();
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
-		sprintf(buf, "%d %f %f %f %u\r\n",data[send_count].sensor_id, convert(data[send_count].x_value), convert(data[send_count].y_value), convert(data[send_count].z_value),  data[send_count].timestamp);
+		sprintf(buf, "%d %u %u %u %u\r\n",data[send_count].sensor_id, data[send_count].x_value, data[send_count].y_value, data[send_count].z_value,  data[send_count].timestamp);
 		// if (err_tick > 2000) {
 
 		// 	// force disconnect from gateway if data cant send after a few tries, more functionalities can be added here
@@ -531,25 +531,57 @@ void send_data(uint16_t count) {
 	
 }
 
-static char* process_command(char *buf) {
+static void process_command(char *buf) {
 	char string[20]; // string test
+	uint16_t count;
 	LOG_INF("Command received: %s", string);
 	char *token;
 	char *rest = buf;
-	char **array = (char**)k_malloc(3*sizeof(char*));
+	char **command = (char**)k_malloc(3*sizeof(char*));
 	for (int j=0; j < 3; j++)
-		array[j] = (char*) k_malloc(sizeof(char)*10);
+		command[j] = (char*) k_malloc(sizeof(char)*10);
 
 	int i = 0;
 	while((token = strtok_r(rest, " ", &rest))) {
-		strcpy(array[i], token);
+		strcpy(command[i], token);
 		i++;
 		if (i > 2) {
 			break;
 		}
 	}
 
-	return array;
+	if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
+			if (strcmp(NULL, command[1]) == 0) {
+
+			}
+		}
+
+		if (strcmp(NULL, command[1]) == 0) {
+			if (strcmp("sample", command[0]) == 0) {
+				// memset(buf, 0, sizeof(buf));
+				// sprintf(buf, "Need sample size(1 - 10000)\n");
+				// int err = bt_nus_send(NULL, buf, sizeof(buf));
+				// if (err) {
+				// 	LOG_WRN("Failed to send data over BLE connection");
+				// }
+			}
+		}
+
+		// This part is shitty...
+		else if (strcmp("sample", command[0]) == 0) {
+			if (strcmp(NULL, command[1])!=0) {
+				count = atoi(command[1]);
+				if (count > 10002){
+
+				} else
+					send_data(count);
+			}
+		}
+
+		for (i=0; i< 3; i++) {        
+   			free(command[i]); 
+		}
+		k_free(command);
 }
 
 
@@ -590,38 +622,38 @@ void sample_thread() {
 		// print_uart("Received:");
 		// print_uart(tx_buf);
 		// print_uart("\r\n");
-		char **command = (char**)k_malloc(3*sizeof(char*));
-		for (int j=0; j < 3; j++)
-			command[j] = (char*) k_malloc(sizeof(char)*10);
-		command = process_command(tx_buf);
-		if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
-			if (strcmp(NULL, command[1]) == 0) {
+		// char **command = (char**)k_malloc(3*sizeof(char*));
+		// for (int j=0; j < 3; j++)
+		// 	command[j] = (char*) k_malloc(sizeof(char)*10);
+		process_command(tx_buf);
+		// if (strcmp("sensor", command[0]) == 0) { // why is this statement not working?????
+		// 	if (strcmp(NULL, command[1]) == 0) {
 
-			}
-		}
+		// 	}
+		// }
 
-		if (strcmp(NULL, command[1]) == 0) {
-			if (strcmp("sample", command[0]) == 0) {
-				// memset(buf, 0, sizeof(buf));
-				// sprintf(buf, "Need sample size(1 - 10000)\n");
-				// int err = bt_nus_send(NULL, buf, sizeof(buf));
-				// if (err) {
-				// 	LOG_WRN("Failed to send data over BLE connection");
-				// }
-			}
-		}
+		// if (strcmp(NULL, command[1]) == 0) {
+		// 	if (strcmp("sample", command[0]) == 0) {
+		// 		// memset(buf, 0, sizeof(buf));
+		// 		// sprintf(buf, "Need sample size(1 - 10000)\n");
+		// 		// int err = bt_nus_send(NULL, buf, sizeof(buf));
+		// 		// if (err) {
+		// 		// 	LOG_WRN("Failed to send data over BLE connection");
+		// 		// }
+		// 	}
+		// }
 
-		// This part is shitty...
-		else if (strcmp("sample", command[0]) == 0) {
-			if (strcmp(NULL, command[1])!=0) {
-				count = atoi(command[1]);
-				if (count > 10002){
+		// // This part is shitty...
+		// else if (strcmp("sample", command[0]) == 0) {
+		// 	if (strcmp(NULL, command[1])!=0) {
+		// 		count = atoi(command[1]);
+		// 		if (count > 10002){
 
-				} else
-					send_data(count);
-			}
-		}
-		k_free(command);
+		// 		} else
+		// 			send_data(count);
+		// 	}
+		// }
+		// k_free(command);
 	}
 }
 

@@ -1,9 +1,9 @@
 &spi2 {
 	compatible = "nordic,nrf-spim";
-	status = "okay";
+	status = "disabled";
 	sck-pin = <8>;  // original 8
 	miso-pin = <9>;  // original 9
-	mosi-pin = <7>;  // original 10
+	mosi-pin = <32>;  // original 10
 };
 
 // /{
@@ -21,12 +21,12 @@
 // 	};
 // };
 
-&uart0{
-	status = "okay";
-	current-speed = <115200>;
-	tx-pin = <45>;
-	rx-pin = <44>;
-};
+// &uart0{
+// 	status = "okay";
+// 	current-speed = <115200>;
+// 	// tx-pin = <45>;
+// 	// rx-pin = <44>;
+// };
 
 &uart1{
 

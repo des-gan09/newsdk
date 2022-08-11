@@ -64,7 +64,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	uint32_t start = k_uptime_get_32();
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
-		sprintf(buf, "%d %hu %hu %hu %u\n",data[send_count].sensor_id, 
+		sprintf(buf, "%d %u %u %u %u\n",data[send_count].sensor_id, 
 				data[send_count].x_value, 
 				data[send_count].y_value, 
 				data[send_count].z_value,  
@@ -102,6 +102,39 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	// bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 }
 
+// uint8_t sensor_id(struct spi_config *spi_conf) {
+// 	uint8_t id;
+// 	switch (spi_conf->cs->gpio_pin)
+// 	{
+// 	case 4:
+// 		/* code */
+// 		id = 0
+// 		break;
+// 	case 5:
+// 		id = 1;
+// 		break;
+// 	case 6:
+// 		id = 2;
+// 		break;
+// 	case 7:
+// 		id = 3;
+// 		break;
+// 	case 8:
+// 		id = 4;
+// 		break;
+// 	case 9:
+// 		id = 5;
+// 		break;
+// 	case 10:
+// 		id = 6;
+// 		break;
+// 	default:
+// 		break;
+// 	}
+// 	return 99;
+// }
+
+
 void sample_data(uint16_t count) {
 	
 	struct sensor_data_t *magnet;
@@ -117,6 +150,7 @@ void sample_data(uint16_t count) {
         }
 		// lis3mdl_poweron(spi_ctg);
 		id = spi_ctgx[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
+		// LOG_INF("sampling sensor %d", spi_ctgx[count_temp].cs->gpio_pin);
 		magnet[i].sensor_id = id;
 		while(1) {
 			uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
@@ -126,12 +160,14 @@ void sample_data(uint16_t count) {
 				break;
 			}
 
-			else if (temp_time - magnet[i-(spi_count-1)].timestamp > 999) {
+			else if (temp_time - magnet[i-(spi_count)].timestamp > 999) {
 				lis3mdl_get_xyz(spi_ctgx[count_temp], &(magnet[i]));
 				magnet[i].timestamp = temp_time; // get timestamp in microseconds 
 				break;
 			}
 		}
+		
+		
 		// lis3mdl_powerlow(spi_ctg);
 		count_temp++;
 	}

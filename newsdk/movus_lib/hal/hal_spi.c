@@ -13,7 +13,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 const struct device *spi;
 
-struct spi_config *spi_ctgx;
+
 uint8_t spi_count;
 
 struct spi_config spi_ctg1;
@@ -36,6 +36,7 @@ void hal_spi_init(void) {
     spi = device_get_binding("SPI_2");
 
 	if (spi == NULL) {
+		LOG_ERR("No SPI device binding.");
 		return;
 	}
 

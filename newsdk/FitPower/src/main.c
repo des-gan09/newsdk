@@ -15,6 +15,7 @@
 #include "ble_transfer.h"
 #include "sample.h"
 #include "hal/wdt.h"
+#include <pm/pm.h>
 
 
 
@@ -30,4 +31,6 @@ void main(void)
 	ble_init();
 #endif
 	lis3mdl_validation();
+	sensoroff(0);
+	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 }

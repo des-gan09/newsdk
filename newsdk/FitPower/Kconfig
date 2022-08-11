@@ -44,5 +44,9 @@ config WATCHDOG_DURATION
 	default 1200000
 	help
 	  Duration before watchdog timer resets the device
-
+config CONNECTION_INTERVAL
+	int "Time interval between each ble connection"
+	default 6
+	help
+	  Duration of cn
 endmenu

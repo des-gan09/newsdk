@@ -37,6 +37,8 @@ struct sensor_data_t {
 	uint32_t timestamp;
 };
 
+extern uint8_t valid[NUM_SENSOR];
+extern struct spi_config *spi_ctgx;
 void lis3mdl_data_rate(struct spi_config spi_ctg);
 void lis3mdl_full_scale_set(struct spi_config spi_ctg);
 void lis3mdl_operating_mode(struct spi_config spi_ctg);
@@ -53,6 +55,7 @@ extern float lis3mdl_convert(int16_t lsb);
 extern float lis3mdl_convert12(int16_t lsb);
 extern void lis3mdl_selftest_settings(struct spi_config spi_ctg);
 extern bool lis3mdl_selftest(struct spi_config spi_ctg);
-extern void lis3mdl_validation(); 
+extern void lis3mdl_validation();
+extern void sensoroff(); 
 
 #endif

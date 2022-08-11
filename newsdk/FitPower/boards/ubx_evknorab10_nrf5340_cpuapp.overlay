@@ -22,7 +22,7 @@
 // };
 
 &uart0{
-	status = "okay";
+	status = "disabled";
 	current-speed = <115200>;
 	tx-pin = <45>;
 	rx-pin = <44>;

@@ -309,7 +309,7 @@ uint8_t lis3mdl_status(struct spi_config spi_ctg) {
 }
 
 float convert(int16_t lsb) {
-	return (((float) lsb) / 1711.0f);
+	return (float) (lsb / 1711.0f);
 }
 
 void lis3mdl_get_x(struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
