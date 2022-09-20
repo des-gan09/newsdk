@@ -15,15 +15,15 @@ struct k_fifo fifo_stream;
 struct k_sem stream_sem;
 void sensor_mode(uint8_t mode) {
 
-	for (int i=0; i < spi_count; i++) {
+	for (int i=0; i < NUM_SENSOR; i++) {
 		switch (mode)
 		{
 		case 0:
-			lis3mdl_poweroff(spi_ctgx[i]);
+			lis3mdl_poweroff(spi_group[i].spi_ctg);
 			k_msleep(20);
 			break;
 		case 1:
-			lis3mdl_init(spi_ctgx[i]);
+			lis3mdl_init(spi_group[i].spi_ctg);
 			k_msleep(20);
 			break;
 		// case 2:
@@ -41,7 +41,7 @@ void streaming_data() {
 	magnet.sensor_id = 0;
 	uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
 	if (k_cyc_to_us_floor32(k_cycle_get_32()) - temp_time > 999) {
-		lis3mdl_get_xyz(spi_ctgx[0], &magnet);
+		lis3mdl_get_xyz(spi_group[0].spi_ctg, &magnet);
 		magnet.timestamp = temp_time; // get timestamp in microseconds 
 	}
 	stream = k_malloc(sizeof(*stream));
@@ -64,7 +64,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	uint32_t start = k_uptime_get_32();
     while(send_count < send_count_uplimit){
 		memset(buf,0,sizeof(buf));
-		sprintf(buf, "%d %hu %hu %hu %u\n",data[send_count].sensor_id, 
+		sprintf(buf, "%d %u %u %u %u\n",data[send_count].sensor_id, 
 				data[send_count].x_value, 
 				data[send_count].y_value, 
 				data[send_count].z_value,  
@@ -87,7 +87,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
              LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(10));
+             k_sleep(K_MSEC(5));
         }
     }
 	uint32_t end = k_uptime_get_32() - start;
@@ -102,36 +102,61 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	// bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 }
 
+void check_sensor() {
+
+	for (int i=0; i < NUM_SENSOR; i++) {
+		
+		if (lis3mdl_present(spi_group[i].spi_ctg)) {
+			// LOG_INF("SENSOR %d present", i);
+			spi_group[i].state = 1; // sensor is present
+			// k_sleep(K_MSEC(1));
+		}
+	}
+}
+
 void sample_data(uint16_t count) {
 	
 	struct sensor_data_t *magnet;
 	magnet = k_malloc(sizeof(struct sensor_data_t) * count);
-
+	struct sensor_data_t junk;
 	uint8_t id, count_temp = 0;
-
+	
 	sensor_mode(1); // turn on all sensors
+	check_sensor();
+
+	for (int i=0; i < NUM_SENSOR; i++) {
+		// LOG_INF("Sensor %d PIN: %d", i, spi_group[i].spi_ctg.cs->gpio_pin);
+		lis3mdl_get_xyz(spi_group[i].spi_ctg, &junk);
+		if (junk.x_value == junk.y_value && junk.x_value == junk.z_value) {
+			spi_group[i].state = 2;
+		}
+	}
 	
 	for (int i=0; i < count; i++) {
-        if (count_temp == spi_count) {
+        if (count_temp == NUM_SENSOR) {
             count_temp = 0;
         }
 		// lis3mdl_poweron(spi_ctg);
-		id = spi_ctgx[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
-		magnet[i].sensor_id = id;
-		while(1) {
-			uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
-			if (i < spi_count) {
-				lis3mdl_get_xyz(spi_ctgx[count_temp], &(magnet[i]));
-				magnet[i].timestamp = temp_time;
-				break;
-			}
+		// id = spi_group[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
+		// LOG_INF("sampling sensor %d", spi_ctgx[count_temp].cs->gpio_pin);
+		magnet[i].sensor_id = spi_group[count_temp].sensor_id;
+		if (spi_group[count_temp].state == 1) {
+			while(1) {
+				uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
+				if (i < NUM_SENSOR) {
+					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
+					magnet[i].timestamp = temp_time;
+					break;
+				}
 
-			else if (temp_time - magnet[i-(spi_count-1)].timestamp > 999) {
-				lis3mdl_get_xyz(spi_ctgx[count_temp], &(magnet[i]));
-				magnet[i].timestamp = temp_time; // get timestamp in microseconds 
-				break;
+				else if (temp_time - magnet[i-(NUM_SENSOR)].timestamp > 999) {
+					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
+					magnet[i].timestamp = temp_time; // get timestamp in microseconds 
+					break;
+				}
 			}
 		}
+
 		// lis3mdl_powerlow(spi_ctg);
 		count_temp++;
 	}

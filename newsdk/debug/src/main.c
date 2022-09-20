@@ -30,7 +30,7 @@ void main(void)
 #else
 	ble_init();
 #endif
-	lis3mdl_validation();
+	// lis3mdl_validation();
 	sensoroff(0);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 

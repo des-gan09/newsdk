@@ -15,22 +15,22 @@
 #include "ble_transfer.h"
 #include "sample.h"
 #include "hal/wdt.h"
+#include "hal/radio.h"
 #include <pm/pm.h>
-
-
 
 #define LOG_MODULE_NAME fittag
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 void main(void)
 {
 	install_watchdog();
-	hal_spi_init();	
+	hal_spi_init();
 #if CONFIG_FITPOWER_SERIAL_SAMPLING
 	continue;
 #else
 	ble_init();
+	// tx_pwr_init();
 #endif
-	lis3mdl_validation();
+	// lis3mdl_validation();
 	sensoroff(0);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 }

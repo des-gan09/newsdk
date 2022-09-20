@@ -25,7 +25,7 @@ target_sources(app PRIVATE
     ../movus_lib/peripheral/lis3mdl.c 
     ../movus_lib/hal/ble.c
     ../movus_lib/hal/wdt.c
-    src/ble_transfer.c
+    ../movus_lib/hal/radio.c
     src/sample.c
     )
 

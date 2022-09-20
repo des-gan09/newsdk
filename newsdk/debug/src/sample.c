@@ -15,15 +15,15 @@ struct k_fifo fifo_stream;
 struct k_sem stream_sem;
 void sensor_mode(uint8_t mode) {
 
-	for (int i=0; i < spi_count; i++) {
+	for (int i=0; i < NUM_SENSOR; i++) {
 		switch (mode)
 		{
 		case 0:
-			lis3mdl_poweroff(spi_ctgx[i]);
+			lis3mdl_poweroff(spi_group[i].spi_ctg);
 			k_msleep(20);
 			break;
 		case 1:
-			lis3mdl_init(spi_ctgx[i]);
+			lis3mdl_init(spi_group[i].spi_ctg);
 			k_msleep(20);
 			break;
 		// case 2:
@@ -41,7 +41,7 @@ void streaming_data() {
 	magnet.sensor_id = 0;
 	uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
 	if (k_cyc_to_us_floor32(k_cycle_get_32()) - temp_time > 999) {
-		lis3mdl_get_xyz(spi_ctgx[0], &magnet);
+		lis3mdl_get_xyz(spi_group[0].spi_ctg, &magnet);
 		magnet.timestamp = temp_time; // get timestamp in microseconds 
 	}
 	stream = k_malloc(sizeof(*stream));
@@ -102,72 +102,61 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 	// bt_conn_disconnect(current_conn ,BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 }
 
-// uint8_t sensor_id(struct spi_config *spi_conf) {
-// 	uint8_t id;
-// 	switch (spi_conf->cs->gpio_pin)
-// 	{
-// 	case 4:
-// 		/* code */
-// 		id = 0
-// 		break;
-// 	case 5:
-// 		id = 1;
-// 		break;
-// 	case 6:
-// 		id = 2;
-// 		break;
-// 	case 7:
-// 		id = 3;
-// 		break;
-// 	case 8:
-// 		id = 4;
-// 		break;
-// 	case 9:
-// 		id = 5;
-// 		break;
-// 	case 10:
-// 		id = 6;
-// 		break;
-// 	default:
-// 		break;
-// 	}
-// 	return 99;
-// }
+void check_sensor() {
 
+	for (int i=0; i < NUM_SENSOR; i++) {
+		
+		if (lis3mdl_present(spi_group[i].spi_ctg)) {
+			// LOG_INF("SENSOR %d present", i);
+			spi_group[i].state = 1; // sensor is present
+			// k_sleep(K_MSEC(1));
+		}
+	}
+}
 
 void sample_data(uint16_t count) {
 	
 	struct sensor_data_t *magnet;
 	magnet = k_malloc(sizeof(struct sensor_data_t) * count);
-
+	struct sensor_data_t junk;
 	uint8_t id, count_temp = 0;
-
+	
 	sensor_mode(1); // turn on all sensors
+	check_sensor();
+
+	for (int i=0; i < NUM_SENSOR; i++) {
+		// LOG_INF("Sensor %d PIN: %d", i, spi_group[i].spi_ctg.cs->gpio_pin);
+		lis3mdl_get_xyz(spi_group[i].spi_ctg, &junk);
+		if (junk.x_value == junk.y_value && junk.x_value == junk.z_value) {
+			spi_group[i].state = 2;
+		}
+	}
 	
 	for (int i=0; i < count; i++) {
-        if (count_temp == spi_count) {
+        if (count_temp == NUM_SENSOR) {
             count_temp = 0;
         }
 		// lis3mdl_poweron(spi_ctg);
-		id = spi_ctgx[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
+		// id = spi_group[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
 		// LOG_INF("sampling sensor %d", spi_ctgx[count_temp].cs->gpio_pin);
-		magnet[i].sensor_id = id;
-		while(1) {
-			uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
-			if (i < spi_count) {
-				lis3mdl_get_xyz(spi_ctgx[count_temp], &(magnet[i]));
-				magnet[i].timestamp = temp_time;
-				break;
-			}
+		magnet[i].sensor_id = spi_group[count_temp].sensor_id;
+		if (spi_group[count_temp].state == 1) {
+			while(1) {
+				uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
+				if (i < NUM_SENSOR) {
+					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
+					magnet[i].timestamp = temp_time;
+					break;
+				}
 
-			else if (temp_time - magnet[i-(spi_count)].timestamp > 999) {
-				lis3mdl_get_xyz(spi_ctgx[count_temp], &(magnet[i]));
-				magnet[i].timestamp = temp_time; // get timestamp in microseconds 
-				break;
+				else if (temp_time - magnet[i-(NUM_SENSOR)].timestamp > 999) {
+					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
+					magnet[i].timestamp = temp_time; // get timestamp in microseconds 
+					break;
+				}
 			}
 		}
-		
-		
+
 		// lis3mdl_powerlow(spi_ctg);
 		count_temp++;
 	}

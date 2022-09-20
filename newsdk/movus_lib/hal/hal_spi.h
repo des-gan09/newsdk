@@ -4,6 +4,12 @@
 #include <device.h>
 #include <drivers/spi.h>
 
+struct spi_sensor_grp {
+	uint8_t sensor_id;
+    struct spi_config spi_ctg;
+    uint8_t state;
+};
+
 extern const struct device *spi;
 
 extern uint8_t spi_count;
@@ -22,6 +28,8 @@ extern struct spi_cs_control spi_cs4;
 extern struct spi_cs_control spi_cs5;
 extern struct spi_cs_control spi_cs6;
 extern struct spi_cs_control spi_cs7;
+
+extern struct spi_sensor_grp *spi_group;
 
 extern void hal_spi_init(void);
 

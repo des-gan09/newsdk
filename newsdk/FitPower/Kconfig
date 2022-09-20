@@ -41,7 +41,7 @@ config FITPOWER_SERIAL_SAMPLING
 
 config WATCHDOG_DURATION
 	int "Watchdog duration"
-	default 1200000
+	default 900000
 	help
 	  Duration before watchdog timer resets the device
 config CONNECTION_INTERVAL

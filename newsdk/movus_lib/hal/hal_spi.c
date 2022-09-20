@@ -12,7 +12,7 @@
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 const struct device *spi;
-
+struct spi_sensor_grp *spi_group;
 
 uint8_t spi_count;
 
@@ -109,6 +109,41 @@ void hal_spi_init(void) {
 	spi_cs7.delay = 0;
 	spi_cs7.gpio_dt_flags = GPIO_ACTIVE_LOW;
 	spi_ctg7.cs = &spi_cs7;
+
+	spi_group = k_malloc(sizeof(struct spi_sensor_grp) * 7);
+	struct spi_config spi_ctg;
+	
+	for (int i=0; i < 7; i++) {
+		switch (i)
+		{
+		case 0:
+			spi_ctg = spi_ctg1;
+			break;
+		case 1:
+			spi_ctg = spi_ctg2;
+			break;
+		case 2:
+			spi_ctg = spi_ctg3;
+			break;
+		case 3:
+			spi_ctg = spi_ctg4;
+			break;
+		case 4:
+			spi_ctg = spi_ctg5;
+			break;
+		case 5:
+			spi_ctg = spi_ctg6;
+			break;
+		case 6:
+			spi_ctg = spi_ctg7;
+			break;
+		default:
+			break;
+		}
+		spi_group[i].sensor_id = i;
+		spi_group[i].spi_ctg = spi_ctg;
+		spi_group[i].state = 0;
+	}	
 }
 
 void hal_spi_read(struct spi_config spi_ctg, uint8_t reg_addr, uint8_t *value, uint8_t len) {
