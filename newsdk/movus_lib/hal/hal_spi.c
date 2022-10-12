@@ -15,6 +15,7 @@ const struct device *spi;
 struct spi_sensor_grp *spi_group;
 
 uint8_t spi_count;
+uint8_t sensor_avail;
 
 struct spi_config spi_ctg1;
 struct spi_config spi_ctg2;
@@ -42,7 +43,7 @@ void hal_spi_init(void) {
 
 	spi_ctg1.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg1.frequency = 8000000;
+	spi_ctg1.frequency = 10000000;
 	spi_ctg1.slave = 0;
 	spi_cs1.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs1.gpio_pin = 4;
@@ -52,7 +53,7 @@ void hal_spi_init(void) {
 
 	spi_ctg2.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg2.frequency = 8000000;
+	spi_ctg2.frequency = 10000000;
 	spi_ctg2.slave = 0;
 	spi_cs2.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs2.gpio_pin = 5;
@@ -62,7 +63,7 @@ void hal_spi_init(void) {
 
 	spi_ctg3.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg3.frequency = 8000000;
+	spi_ctg3.frequency = 10000000;
 	spi_ctg3.slave = 0;
 	spi_cs3.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs3.gpio_pin = 6;
@@ -72,7 +73,7 @@ void hal_spi_init(void) {
 
 	spi_ctg4.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg4.frequency = 8000000;
+	spi_ctg4.frequency = 10000000;
 	spi_ctg4.slave = 0;
 	spi_cs4.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs4.gpio_pin = 7;
@@ -82,7 +83,7 @@ void hal_spi_init(void) {
 
 	spi_ctg5.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg5.frequency = 8000000;
+	spi_ctg5.frequency = 10000000;
 	spi_ctg5.slave = 0;
 	spi_cs5.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs5.gpio_pin = 8;
@@ -92,7 +93,7 @@ void hal_spi_init(void) {
 
 	spi_ctg6.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg6.frequency = 8000000;
+	spi_ctg6.frequency = 10000000;
 	spi_ctg6.slave = 0;
 	spi_cs6.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs6.gpio_pin = 9;
@@ -102,7 +103,7 @@ void hal_spi_init(void) {
 
 	spi_ctg7.operation =
 			SPI_WORD_SET(8) | SPI_TRANSFER_MSB |SPI_OP_MODE_MASTER;
-	spi_ctg7.frequency = 8000000;
+	spi_ctg7.frequency = 10000000;
 	spi_ctg7.slave = 0;
 	spi_cs7.gpio_dev = device_get_binding("GPIO_1");
 	spi_cs7.gpio_pin = 10;
@@ -112,7 +113,7 @@ void hal_spi_init(void) {
 
 	spi_group = k_malloc(sizeof(struct spi_sensor_grp) * 7);
 	struct spi_config spi_ctg;
-	
+	sensor_avail = 0;
 	for (int i=0; i < 7; i++) {
 		switch (i)
 		{
@@ -143,6 +144,7 @@ void hal_spi_init(void) {
 		spi_group[i].sensor_id = i;
 		spi_group[i].spi_ctg = spi_ctg;
 		spi_group[i].state = 0;
+		sensor_avail |= (1 << i);
 	}	
 }
 

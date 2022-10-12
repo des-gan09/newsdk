@@ -1,0 +1,7 @@
+#ifndef BLE_TRANSFER_H
+#define BLE_TRANSFER_H
+
+#define STACKSIZE CONFIG_BT_NUS_THREAD_STACK_SIZE
+#define PRIORITY 7
+
+#endif

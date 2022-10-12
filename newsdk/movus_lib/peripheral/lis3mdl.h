@@ -37,6 +37,16 @@ struct sensor_data_t {
 	uint32_t timestamp;
 };
 
+struct sensor_data_test {
+	uint8_t sensor_id;
+	uint16_t x_value;
+	uint16_t y_value;
+	uint16_t z_value;
+	uint32_t timestamp_x;
+	uint32_t timestamp_y;
+	uint32_t timestamp_z;
+};
+
 extern uint8_t valid[NUM_SENSOR];
 extern struct spi_config *spi_ctgx;
 void lis3mdl_data_rate(struct spi_config spi_ctg);

@@ -31,7 +31,7 @@ void install_watchdog() {
 	/* Expire watchdog after 1000 milliseconds. */
 	wdt_config.window.min = 0U;
 	wdt_config.window.max = CONFIG_WATCHDOG_DURATION;
-
+	// wdt_config.window.max = 900000U;
 	/* Set up watchdog callback. Jump into it when watchdog expired. */
 	wdt_config.callback = wdt_callback;
 

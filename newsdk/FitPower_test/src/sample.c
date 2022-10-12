@@ -119,10 +119,16 @@ void sample_data(uint16_t count) {
 	struct sensor_data_t *magnet;
 	magnet = k_malloc(sizeof(struct sensor_data_t) * count);
 	struct sensor_data_t junk;
-	uint8_t id, count_temp = 0;
-	
+	uint8_t id, count_temp, row, offsetlimit = 0;
+	uint8_t tries = 3;
+	int sampled = 0;
+	uint8_t order[NUM_SENSOR], new_order[NUM_SENSOR];
 	sensor_mode(1); // turn on all sensors
 	check_sensor();
+
+	for (int i=0; i<NUM_SENSOR; i++) { // get default order (ie:1,2,3,4,5,6,7)
+		order[i] = spi_group[i].sensor_id;
+	}
 
 	for (int i=0; i < NUM_SENSOR; i++) {
 		// LOG_INF("Sensor %d PIN: %d", i, spi_group[i].spi_ctg.cs->gpio_pin);
@@ -132,33 +138,47 @@ void sample_data(uint16_t count) {
 		}
 	}
 	
-	for (int i=0; i < count; i++) {
-        if (count_temp == NUM_SENSOR) {
-            count_temp = 0;
-        }
-		// lis3mdl_poweron(spi_ctg);
-		// id = spi_group[count_temp].cs->gpio_pin - 4; // Hard-coded value, not optimized , change this 
-		// LOG_INF("sampling sensor %d", spi_ctgx[count_temp].cs->gpio_pin);
-		magnet[i].sensor_id = spi_group[count_temp].sensor_id;
-		if (spi_group[count_temp].state == 1) {
-			while(1) {
-				uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
-				if (i < NUM_SENSOR) {
-					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
-					magnet[i].timestamp = temp_time;
-					break;
-				}
+	// while (sampled < count) {
+	// 	if (count_temp == NUM_SENSOR) {
+	// 		count_temp = 0;
+	// 	}
 
-				else if (temp_time - magnet[i-(NUM_SENSOR)].timestamp > 999) {
-					lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[i]));
-					magnet[i].timestamp = temp_time; // get timestamp in microseconds 
-					break;
-				}
+	// 	if (row == sensor_avail) {
+	// 		row = 0;
+	// 	}
+	// 	if (!((row >> count_temp) & 0x01)) {
+	// 		if (lis3mdl_status(spi_group[count_temp].spi_ctg)) {
+	// 			lis3mdl_get_xyz(spi_group[count_temp].spi_ctg, &(magnet[sampled]));				
+	// 			uint32_t temp_time = k_cyc_to_us_floor32(k_cycle_get_32());
+	// 			magnet[sampled].timestamp = temp_time; // get timestamp in microseconds
+	// 			magnet[sampled].sensor_id = spi_group[count_temp].sensor_id;
+	// 			sampled++;
+	// 			row |= (1 << count_temp);
+	// 		}
+	// 		}
+	// 	count_temp++;
+	// }
+
+	while (sampled < count) {
+		if (lis3mdl_status(spi_group[order[count_temp]].spi_ctg)) {
+			magnet[sampled].timestamp = k_cyc_to_us_floor32(k_cycle_get_32()); // get timestamp in microseconds
+			lis3mdl_get_xyz(spi_group[order[count_temp]].spi_ctg, &(magnet[sampled]));				
+			id = spi_group[order[count_temp]].sensor_id;
+			magnet[sampled].sensor_id = id;
+			sampled++;
+			for (int i=count_temp; i < NUM_SENSOR-1; i++) {
+				order[i] = order[i+1];
+			}
+			order[NUM_SENSOR-1] = id;
+ 			count_temp = 0;
+			offsetlimit = 0;
+		} else {
+			count_temp++;
+			if (count_temp > offsetlimit) {
+				offsetlimit = count_temp;
+				count_temp = 0;
 			}
 		}
-
-		// lis3mdl_powerlow(spi_ctg);
-		count_temp++;
 	}
 
 	sensor_mode(0); // turn off all sensors
@@ -206,7 +226,6 @@ void sampling_thread() {
 	k_fifo_init(&fifo_stream);
 	k_sem_init(&stream_sem, 0 , 1);
     k_sem_take(&ble_init_ok, K_FOREVER);
-    // k_sem_take(&throughput_sem, K_FOREVER);
     for(;;) {
         struct command_t command;
         struct uart_data_t *buf = k_fifo_get(&fifo_transfer,

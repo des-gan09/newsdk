@@ -87,7 +87,7 @@ void ble_transfer(struct sensor_data_t *data, uint16_t count) {
 
         if(send_count - get_sent_cnt() > (CONFIG_BT_L2CAP_TX_BUF_COUNT)){
              LOG_WRN("Buffer getting tight, wait sometime here");
-             k_sleep(K_MSEC(3));
+             k_sleep(K_MSEC(10));
         }
     }
 	uint32_t end = k_uptime_get_32() - start;
@@ -203,36 +203,36 @@ static uint8_t process_command(struct uart_data_t *buf, struct command_t *comman
 }
 
 void sampling_thread() {
-	k_fifo_init(&fifo_stream);
-	k_sem_init(&stream_sem, 0 , 1);
-    k_sem_take(&ble_init_ok, K_FOREVER);
-    // k_sem_take(&throughput_sem, K_FOREVER);
-    for(;;) {
-        struct command_t command;
-        struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
-							K_FOREVER);
-        k_sem_take(&throughput_sem, K_FOREVER);
-		if (!process_command(buf, &command)) {
-			switch (command.mode)
-			{
-			case FULL_SAMPLE:
-				LOG_INF("Taking %d samples.", command.samples);
-				sample_data(command.samples);
-				break;
-			case REALTIME_SAMPLE:
-				LOG_INF("Sampling in realtime.");
-				k_sem_give(&stream_sem);
-				streaming_data();
-				break;
-			case VALIDATION:
-				lis3mdl_validation();
-				break;
-			default:
-				break;
-			}
-		}
-		k_free(buf);
-    }
+	// k_fifo_init(&fifo_stream);
+	// k_sem_init(&stream_sem, 0 , 1);
+    // k_sem_take(&ble_init_ok, K_FOREVER);
+    // // k_sem_take(&throughput_sem, K_FOREVER);
+    // for(;;) {
+    //     struct command_t command;
+    //     struct uart_data_t *buf = k_fifo_get(&fifo_transfer,
+	// 						K_FOREVER);
+    //     k_sem_take(&throughput_sem, K_FOREVER);
+	// 	if (!process_command(buf, &command)) {
+	// 		switch (command.mode)
+	// 		{
+	// 		case FULL_SAMPLE:
+	// 			LOG_INF("Taking %d samples.", command.samples);
+	// 			sample_data(command.samples);
+	// 			break;
+	// 		case REALTIME_SAMPLE:
+	// 			LOG_INF("Sampling in realtime.");
+	// 			k_sem_give(&stream_sem);
+	// 			streaming_data();
+	// 			break;
+	// 		case VALIDATION:
+	// 			lis3mdl_validation();
+	// 			break;
+	// 		default:
+	// 			break;
+	// 		}
+	// 	}
+	// 	k_free(buf);
+    // }
 }
 
 K_THREAD_DEFINE(sampling_thread_id, STACKSIZE, sampling_thread, NULL, NULL,

@@ -54,10 +54,10 @@ void lis3mdl_init(struct spi_config spi_ctg) {
 
 uint8_t lis3mdl_status(struct spi_config spi_ctg) {
 	uint8_t ret;
-	hal_spi_read(spi_ctg, LIS3MDL_STATUS_REG, (uint8_t * ) &ret, sizeof(ret));
-	// i2c_reg_read_byte(i2c_device, LIS3MDL_I2C_ADDR, LIS3MDL_STATUS_REG, &ret);
-	// printk("%x\n", ret);
-	return ((ret >> 3) & 0x01);
+	hal_spi_read(spi_ctg, LIS3MDL_STATUS_REG | LIS3MDL_SPI_READ, (uint8_t * ) &ret, sizeof(ret));
+	return ret;
+	// return ((ret >> 1) & 0x01 && (ret & 0x01));
+	// return ((ret >> 3 ) & 0x01);
 }
 
 void lis3mdl_get_x (struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
@@ -90,7 +90,7 @@ void lis3mdl_get_z(struct spi_config spi_ctg, struct sensor_data_t *sensor_data)
 void lis3mdl_get_xyz(struct spi_config spi_ctg, struct sensor_data_t *sensor_data) {
 	uint8_t status;
 	uint8_t data[6];
-
+	// while(!lis3mdl_status(spi_ctg));
 	hal_spi_read(spi_ctg, (LIS3MDL_OUT_X_L | 1 << 6)| LIS3MDL_SPI_READ, (uint8_t * ) &data, sizeof(data));
 	sensor_data->x_value = (data[1] << 8 | data[0]);
 	sensor_data->y_value = (data[3] << 8 | data[2]);

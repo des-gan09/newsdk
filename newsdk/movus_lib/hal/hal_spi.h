@@ -11,7 +11,7 @@ struct spi_sensor_grp {
 };
 
 extern const struct device *spi;
-
+extern uint8_t sensor_avail;
 extern uint8_t spi_count;
 extern struct spi_config spi_ctg1;
 extern struct spi_config spi_ctg2;

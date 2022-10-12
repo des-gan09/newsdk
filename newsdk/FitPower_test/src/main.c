@@ -31,6 +31,7 @@ void main(void)
 	// tx_pwr_init();
 #endif
 	// lis3mdl_validation();
-	// sensoroff(0);
+	sensor_mode(1);
+	sensoroff(0);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 }
