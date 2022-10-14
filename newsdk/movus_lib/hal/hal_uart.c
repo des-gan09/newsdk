@@ -1,12 +1,18 @@
 #include <drivers/uart.h>
-
+#include <device.h>
 #include "hal_uart.h"
+#include <logging/log.h>
 
 #define LOG_MODULE_NAME uart
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
-K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
+// K_MSGQ_DEFINE(uart_msgq, MSG_SIZE, 10, 4);
+char __aligned(4) uart_msgq_buffer[MSG_SIZE];
+struct k_msgq uart_msgq;
 
+
+struct k_sem sample_ok;
+const struct device *uart;
 /* receive buffer used in UART ISR callback */
 static char rx_buf[MSG_SIZE];
 static int rx_buf_pos;
@@ -19,13 +25,13 @@ void serial_cb(const struct device *dev, void *user_data)
 {
 	uint8_t c;
 
-	if (!uart_irq_update(uart_dev)) {
+	if (!uart_irq_update(uart)) {
 		return;
 	}
 
-	while (uart_irq_rx_ready(uart_dev)) {
+	while (uart_irq_rx_ready(uart)) {
 
-		uart_fifo_read(uart_dev, &c, 1);
+		uart_fifo_read(uart, &c, 1);
 
 		if ((c == '\n' || c == '\r') && rx_buf_pos > 0) {
 			/* terminate string */
@@ -44,13 +50,16 @@ void serial_cb(const struct device *dev, void *user_data)
 }
 
 void hal_uart_init() {
+	k_msgq_init(&uart_msgq, uart_msgq_buffer, MSG_SIZE, 10);
     uart = device_get_binding("UART_1");
     if (uart == NULL) {
         LOG_ERR("Cannot find UART device");
         return;
     }
-    k_msgq_init(&uart_msg, MSG_SIZE, sizeof(struct data_item_type), 10);
+	k_sem_init(&sample_ok, 0, 1);
+    // k_msgq_init(&uart_msg, MSG_SIZE, sizeof(struct data_item_type), 10);
 
     uart_irq_callback_user_data_set(uart, serial_cb, NULL);
 	uart_irq_rx_enable(uart);
+	k_sem_give(&sample_ok);
 }

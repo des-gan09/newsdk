@@ -7,6 +7,7 @@
 #include <drivers/spi.h> 
 #include "peripheral/lis3mdl.h"
 #include "hal/hal_spi.h"
+#include "hal/hal_uart.h"
 #include "hal/ble.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,24 +17,22 @@
 #include "sample.h"
 #include "hal/wdt.h"
 #include "hal/radio.h"
-
 #include <pm/pm.h>
 
 #define LOG_MODULE_NAME fittag
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 void main(void)
 {
-	install_watchdog();
+	// install_watchdog();
 	hal_spi_init();
 #if CONFIG_FITPOWER_SERIAL_SAMPLING
-
-	continue;
+	hal_uart_init();
 #else
 	ble_init();
+	k_sem_give(&sample_ok);
 	// tx_pwr_init();
 #endif
 	// lis3mdl_validation();
-	// sensor_mode(1);
 	// sensoroff(0);
 	pm_device_state_set(spi, PM_DEVICE_STATE_LOW_POWER,NULL,NULL);
 }
